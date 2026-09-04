@@ -1,0 +1,26 @@
+{
+  "name": "pixytalk",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@pixytalk/web",
+    "dev:api": "turbo run dev --filter=@pixytalk/api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "check": "turbo run lint typecheck test && turbo run build && turbo run test:e2e",
+    "prepare": "node scripts/prepare.mjs"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "husky": "^9.1.7",
+    "turbo": "^2.10.12"
+  }
+}

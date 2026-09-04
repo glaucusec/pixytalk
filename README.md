@@ -54,8 +54,29 @@ Kerala Tripist is the first planned pilot customer. PixyTalk is being designed a
 
 PixyTalk is in early development. The capabilities above describe the intended first release; they are not yet available as a finished product.
 
-The immediate focus is a working WhatsApp inbox, useful AI replies, human takeover, and a tested pilot deployment. Setup instructions will be added as the application becomes runnable.
+The immediate focus is a working WhatsApp inbox, useful AI replies, human takeover, and a tested pilot deployment.
+
+## Local development
+
+The repository uses pnpm workspaces and Turborepo to run the frontend and backend together. Use Node.js 24 and pnpm 11.9.0.
+
+From the repository root:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+The frontend runs at `http://localhost:3000` and the API at `http://localhost:3001`. These are starter applications; the product features above are still being built.
+
+See [the development guide](docs/DEVELOPMENT.md) for workspace commands and structure.
 
 ## What comes next
 
 After validating the core experience, the roadmap includes easier business onboarding, team invitations, and more integrations. Additional channels and advanced automation will follow as product needs become clearer.
+
+## Working on PixyTalk
+
+Read the [contribution guide](CONTRIBUTING.md) for branch names, commit messages, checks, and pull requests. Project spaces follow our [Code of Conduct](CODE_OF_CONDUCT.md); vulnerabilities should follow the [security policy](SECURITY.md).
+
+An open-source license has not yet been selected.

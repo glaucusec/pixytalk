@@ -1,5 +1,5 @@
 {
-  "name": "api",
+  "name": "@pixytalk/api",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -13,13 +13,15 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js",
     "lint": "oxlint src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "typecheck": "tsc --noEmit",
+    "dev": "nest start --watch"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
