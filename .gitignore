@@ -1,0 +1,49 @@
+# Local planning documents
+/_plans/
+
+# Dependencies and package-manager caches
+node_modules/
+.pnpm-store/
+.npm/
+
+# Environment secrets (commit sanitized examples only)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Build output and caches
+.next/
+out/
+dist/
+build/
+.turbo/
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Logs and temporary files
+logs/
+*.log
+*.pid
+*.pid.lock
+.tmp/
+.temp/
+*.swp
+*.swo
+
+# Local deployment metadata
+.vercel/
+.wrangler/
+
+# OS files and private key material
+.DS_Store
+Thumbs.db
+*.pem
+*.key

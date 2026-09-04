@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">PixyTalk</title>
+  <desc id="desc">A white conversation bubble with a small sparkle on a dark teal rounded square.</desc>
+  <rect width="128" height="128" rx="30" fill="#103D3B"/>
+  <path d="M31 37H81C89.284 37 96 43.716 96 52V74C96 82.284 89.284 89 81 89H56L35 103V89H31C22.716 89 16 82.284 16 74V52C16 43.716 22.716 37 31 37Z" fill="#F4FBF7"/>
+  <rect x="34" y="54" width="40" height="7" rx="3.5" fill="#103D3B"/>
+  <rect x="34" y="68" width="27" height="7" rx="3.5" fill="#103D3B"/>
+  <path d="M96 17L100.7 29.3L113 34L100.7 38.7L96 51L91.3 38.7L79 34L91.3 29.3L96 17Z" fill="#9AE6B4" stroke="#103D3B" stroke-width="4" stroke-linejoin="round"/>
+</svg>
