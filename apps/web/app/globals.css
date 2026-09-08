@@ -162,6 +162,16 @@
   animation: auth-message-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.inbox-message-field {
+  background-color: color-mix(in oklab, var(--muted) 35%, var(--background));
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 0.7px,
+    transparent 0.8px
+  );
+  background-size: 18px 18px;
+}
+
 @keyframes auth-message-in {
   from {
     opacity: 0;

@@ -29,14 +29,17 @@ describe('WhatsAppWebhookService', () => {
       async (callback: (client: typeof transaction) => Promise<unknown>) =>
         callback(transaction),
     ),
+    whatsAppAccount: { findUnique: vi.fn() },
+    message: { findFirst: vi.fn(), update: vi.fn() },
   };
-  const mapper = { map: vi.fn() };
+  const mapper = { map: vi.fn(), mapStatuses: vi.fn() };
 
   let service: WhatsAppWebhookService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mapper.map.mockReturnValue([event]);
+    mapper.mapStatuses.mockReturnValue([]);
     transaction.whatsAppAccount.findUnique.mockResolvedValue({
       id: 'account-1',
       organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
@@ -59,6 +62,8 @@ describe('WhatsAppWebhookService', () => {
     await expect(service.process({})).resolves.toEqual({
       processed: 1,
       duplicates: 0,
+      statusesUpdated: 0,
+      unmatchedStatuses: 0,
     });
 
     expect(transaction.whatsAppAccount.findUnique).toHaveBeenCalledWith({
@@ -91,6 +96,8 @@ describe('WhatsAppWebhookService', () => {
     await expect(service.process({})).resolves.toEqual({
       processed: 0,
       duplicates: 1,
+      statusesUpdated: 0,
+      unmatchedStatuses: 0,
     });
     expect(transaction.conversation.updateMany).not.toHaveBeenCalled();
   });
@@ -102,5 +109,42 @@ describe('WhatsAppWebhookService', () => {
       ServiceUnavailableException,
     );
     expect(transaction.contact.upsert).not.toHaveBeenCalled();
+  });
+
+  it('advances an outbound message delivery status for the mapped tenant', async () => {
+    mapper.map.mockReturnValue([]);
+    mapper.mapStatuses.mockReturnValue([
+      {
+        wabaId: 'waba-1',
+        phoneNumberId: 'phone-1',
+        providerMessageId: 'wamid-outbound',
+        providerTimestamp: new Date('2026-09-08T00:01:00.000Z'),
+        status: 'DELIVERED',
+        rawPayload: { id: 'wamid-outbound', status: 'delivered' },
+      },
+    ]);
+    prisma.whatsAppAccount.findUnique.mockResolvedValue({
+      id: 'account-1',
+      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      wabaId: 'waba-1',
+    });
+    prisma.message.findFirst.mockResolvedValue({
+      id: 'message-1',
+      status: 'SENT',
+      conversation: { WhatsAppAccountId: 'account-1' },
+    });
+
+    await expect(service.process({})).resolves.toEqual({
+      processed: 0,
+      duplicates: 0,
+      statusesUpdated: 1,
+      unmatchedStatuses: 0,
+    });
+    expect(prisma.message.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'message-1' },
+        data: expect.objectContaining({ status: 'DELIVERED' }),
+      }),
+    );
   });
 });

@@ -76,3 +76,14 @@ export interface NormalizedInboundMessage {
   content?: unknown;
   rawPayload: Record<string, unknown>;
 }
+
+export type SupportedMessageStatus = 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+
+export interface NormalizedMessageStatus {
+  wabaId: string;
+  phoneNumberId: string;
+  providerMessageId: string;
+  providerTimestamp: Date;
+  status: SupportedMessageStatus;
+  rawPayload: Record<string, unknown>;
+}

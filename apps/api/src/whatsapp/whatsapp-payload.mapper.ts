@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type {
   NormalizedInboundMessage,
+  NormalizedMessageStatus,
   SupportedInboundMessageType,
+  SupportedMessageStatus,
 } from './whatsapp.types.js';
 
 const SUPPORTED_MESSAGE_TYPES = new Set<SupportedInboundMessageType>([
@@ -14,6 +16,13 @@ const SUPPORTED_MESSAGE_TYPES = new Set<SupportedInboundMessageType>([
   'LOCATION',
   'CONTACTS',
   'INTERACTIVE',
+]);
+
+const SUPPORTED_MESSAGE_STATUSES = new Set<SupportedMessageStatus>([
+  'SENT',
+  'DELIVERED',
+  'READ',
+  'FAILED',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -89,6 +98,79 @@ export class WhatsAppPayloadMapper {
     }
 
     return messages;
+  }
+
+  mapStatuses(payload: unknown): NormalizedMessageStatus[] {
+    if (!isRecord(payload) || payload.object !== 'whatsapp_business_account') {
+      throw new BadRequestException('Invalid WhatsApp webhook payload');
+    }
+
+    const statuses: NormalizedMessageStatus[] = [];
+
+    for (const entryValue of readArray(payload, 'entry')) {
+      if (!isRecord(entryValue)) {
+        throw new BadRequestException('Invalid WhatsApp webhook entry');
+      }
+
+      const wabaId = readRequiredString(entryValue, 'id');
+
+      for (const changeValue of readArray(entryValue, 'changes')) {
+        if (!isRecord(changeValue) || changeValue.field !== 'messages') {
+          continue;
+        }
+        if (!isRecord(changeValue.value)) {
+          throw new BadRequestException('Invalid WhatsApp webhook value');
+        }
+
+        const rawStatuses = readArray(changeValue.value, 'statuses');
+        if (rawStatuses.length === 0) continue;
+        if (!isRecord(changeValue.value.metadata)) {
+          throw new BadRequestException(
+            'WhatsApp status payload is missing metadata',
+          );
+        }
+
+        const phoneNumberId = readRequiredString(
+          changeValue.value.metadata,
+          'phone_number_id',
+        );
+
+        for (const rawStatus of rawStatuses) {
+          if (!isRecord(rawStatus)) {
+            throw new BadRequestException('Invalid WhatsApp message status');
+          }
+
+          const statusValue = readRequiredString(
+            rawStatus,
+            'status',
+          ).toUpperCase() as SupportedMessageStatus;
+          if (!SUPPORTED_MESSAGE_STATUSES.has(statusValue)) continue;
+
+          const timestamp = readRequiredString(rawStatus, 'timestamp');
+          const parsedTimestamp = Number(timestamp);
+          const providerTimestamp = new Date(parsedTimestamp * 1000);
+          if (
+            !Number.isFinite(parsedTimestamp) ||
+            Number.isNaN(providerTimestamp.getTime())
+          ) {
+            throw new BadRequestException(
+              'WhatsApp status payload has an invalid timestamp',
+            );
+          }
+
+          statuses.push({
+            wabaId,
+            phoneNumberId,
+            providerMessageId: readRequiredString(rawStatus, 'id'),
+            providerTimestamp,
+            status: statusValue,
+            rawPayload: rawStatus,
+          });
+        }
+      }
+    }
+
+    return statuses;
   }
 
   private mapChange(

@@ -22,6 +22,7 @@ enum MessageType {
 }
 
 enum MessageStatus {
+  PENDING
   RECEIVED
   SENT
   DELIVERED

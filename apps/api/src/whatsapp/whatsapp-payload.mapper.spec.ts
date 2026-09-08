@@ -77,6 +77,42 @@ describe('WhatsAppPayloadMapper', () => {
     ).toEqual([]);
   });
 
+  it('normalizes outbound delivery statuses', () => {
+    expect(
+      mapper.mapStatuses({
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'waba-1',
+            changes: [
+              {
+                field: 'messages',
+                value: {
+                  metadata: { phone_number_id: 'phone-1' },
+                  statuses: [
+                    {
+                      id: 'wamid-1',
+                      status: 'delivered',
+                      timestamp: '1603059201',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        wabaId: 'waba-1',
+        phoneNumberId: 'phone-1',
+        providerMessageId: 'wamid-1',
+        status: 'DELIVERED',
+        providerTimestamp: new Date('2020-10-18T22:13:21.000Z'),
+      }),
+    ]);
+  });
+
   it('keeps unsupported message content and labels it unknown', () => {
     const [message] = mapper.map({
       object: 'whatsapp_business_account',

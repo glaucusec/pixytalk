@@ -11,11 +11,23 @@ import {
 import { PrismaService } from '../database/prisma.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
+import type { NormalizedMessageStatus } from './whatsapp.types.js';
 
 export interface WebhookProcessingResult {
   processed: number;
   duplicates: number;
+  statusesUpdated: number;
+  unmatchedStatuses: number;
 }
+
+const STATUS_RANK: Record<MessageStatus, number> = {
+  PENDING: 0,
+  RECEIVED: 0,
+  SENT: 1,
+  DELIVERED: 2,
+  READ: 3,
+  FAILED: 4,
+};
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -32,7 +44,13 @@ export class WhatsAppWebhookService {
 
   async process(payload: unknown): Promise<WebhookProcessingResult> {
     const events = this.payloadMapper.map(payload);
-    const result: WebhookProcessingResult = { processed: 0, duplicates: 0 };
+    const statuses = this.payloadMapper.mapStatuses(payload);
+    const result: WebhookProcessingResult = {
+      processed: 0,
+      duplicates: 0,
+      statusesUpdated: 0,
+      unmatchedStatuses: 0,
+    };
 
     for (const event of events) {
       const inserted = await this.persistInboundMessage(event);
@@ -44,7 +62,62 @@ export class WhatsAppWebhookService {
       }
     }
 
+    for (const status of statuses) {
+      if (await this.applyMessageStatus(status)) {
+        result.statusesUpdated += 1;
+      } else {
+        result.unmatchedStatuses += 1;
+      }
+    }
+
     return result;
+  }
+
+  private async applyMessageStatus(
+    event: NormalizedMessageStatus,
+  ): Promise<boolean> {
+    const account = await this.prisma.whatsAppAccount.findUnique({
+      where: { phoneNumberId: event.phoneNumberId },
+    });
+
+    if (!account || account.wabaId !== event.wabaId) {
+      this.logger.warn(
+        `Ignoring a WhatsApp status for an unmapped phone number`,
+      );
+      return false;
+    }
+
+    const message = await this.prisma.message.findFirst({
+      where: {
+        providerMessageId: event.providerMessageId,
+        organizationId: account.organizationId,
+      },
+      include: {
+        conversation: { select: { WhatsAppAccountId: true } },
+      },
+    });
+
+    if (!message || message.conversation.WhatsAppAccountId !== account.id) {
+      this.logger.warn(
+        `Ignoring a WhatsApp status for an unknown message`,
+      );
+      return false;
+    }
+
+    const incomingStatus = MessageStatus[event.status];
+    if (STATUS_RANK[incomingStatus] <= STATUS_RANK[message.status]) {
+      return true;
+    }
+
+    await this.prisma.message.update({
+      where: { id: message.id },
+      data: {
+        status: incomingStatus,
+        rawPayload: toJsonValue(event.rawPayload),
+      },
+    });
+
+    return true;
   }
 
   private async persistInboundMessage(

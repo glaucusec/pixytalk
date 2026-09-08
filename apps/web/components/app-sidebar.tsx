@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -49,7 +50,7 @@ const navigation = [
     title: "Inbox",
     href: "/dashboard/inbox",
     icon: InboxIcon,
-    available: false,
+    available: true,
   },
   {
     title: "Knowledge",
@@ -171,12 +172,14 @@ export function AppSidebar({
                 <ChevronUpIcon className="ml-auto" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="w-60">
-                <DropdownMenuLabel className="font-normal">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {user.name}
-                  </p>
-                  <p className="truncate text-xs">{user.email}</p>
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="font-normal">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {user.name}
+                    </p>
+                    <p className="truncate text-xs">{user.email}</p>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut}>
                   <LogOutIcon />
