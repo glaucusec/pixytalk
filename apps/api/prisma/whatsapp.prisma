@@ -1,0 +1,102 @@
+enum ConversationStatus {
+  CLOSED
+  OPEN
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  STICKER
+  LOCATION
+  CONTACTS
+  INTERACTIVE
+  UNKNOWN
+}
+
+enum MessageStatus {
+  RECEIVED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model WhatsAppAccount {
+  id                 String   @id @default(uuid())
+  organizationId     String   @db.Uuid
+  wabaId             String
+  phoneNumberId      String   @unique
+  displayPhoneNumber String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts      Contact[]
+  conversations Conversation[]
+
+  @@index([organizationId])
+}
+
+model Contact {
+  id                String   @id @default(uuid())
+  organizationId    String   @db.Uuid
+  WhatsAppAccountId String
+  waId              String
+  displayName       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  WhatsAppAccount WhatsAppAccount @relation(fields: [WhatsAppAccountId], references: [id], onDelete: Cascade)
+  conversations   Conversation[]
+
+  @@unique([WhatsAppAccountId, waId])
+  @@index([organizationId])
+}
+
+model Conversation {
+  id                String             @id @default(uuid())
+  organizationId    String             @db.Uuid
+  WhatsAppAccountId String
+  contactId         String
+  status            ConversationStatus @default(OPEN)
+  lastMessageAt     DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  WhatsAppAccount WhatsAppAccount @relation(fields: [WhatsAppAccountId], references: [id], onDelete: Cascade)
+  contact         Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages        Message[]
+
+  @@unique([WhatsAppAccountId, contactId])
+  @@index([organizationId, lastMessageAt])
+}
+
+model Message {
+  id                String           @id @default(uuid())
+  organizationId    String           @db.Uuid
+  conversationId    String
+  providerMessageId String           @unique
+  direction         MessageDirection
+  type              MessageType
+  status            MessageStatus    @default(RECEIVED)
+  text              String?
+  content           Json?
+  providerTimestamp DateTime
+  rawPayload        Json?
+  createdAt         DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, conversationId, providerTimestamp])
+}

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '@thallesp/nestjs-better-auth';
 import { OrganizationsModule } from './organizations/organizations.module.js';
 import { auth } from './auth/auth.js';
+import { WhatsappModule } from './whatsapp/whatsapp.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { auth } from './auth/auth.js';
       },
     }),
     OrganizationsModule,
+    WhatsappModule,
   ],
 })
 export class AppModule {}

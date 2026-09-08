@@ -8,6 +8,11 @@ model Organization {
   members     Member[]
   invitations Invitation[]
 
+  whatsAppAccounts WhatsAppAccount[]
+  contacts         Contact[]
+  conversations    Conversation[]
+  messages         Message[]
+
   @@unique([slug])
   @@map("organization")
 }
