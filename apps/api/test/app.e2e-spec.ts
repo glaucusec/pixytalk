@@ -89,7 +89,13 @@ describe('WhatsApp webhook (e2e)', () => {
       .set('x-hub-signature-256', signature)
       .send(rawBody)
       .expect(200)
-      .expect({ received: true, processed: 0, duplicates: 0 });
+      .expect({
+        received: true,
+        processed: 0,
+        duplicates: 0,
+        statusesUpdated: 0,
+        unmatchedStatuses: 0,
+      });
   });
 
   it('rejects an invalid POST signature', () => {
