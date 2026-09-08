@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { InboxScreen } from "@/components/inbox-screen";
+import { InboxScreen } from "@/components/inbox/inbox-screen";
 
 export const metadata: Metadata = { title: "Inbox" };
 

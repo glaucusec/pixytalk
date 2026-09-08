@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, use, useMemo, type ReactNode } from "react";
 
 import type { CurrentOrganization } from "@/lib/api";
 
@@ -18,10 +18,22 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
-export const WorkspaceProvider = WorkspaceContext.Provider;
+export function WorkspaceProvider({
+  children,
+  user,
+  organization,
+  role,
+}: WorkspaceContextValue & { children: ReactNode }) {
+  const value = useMemo(
+    () => ({ user, organization, role }),
+    [organization, role, user],
+  );
+
+  return <WorkspaceContext value={value}>{children}</WorkspaceContext>;
+}
 
 export function useWorkspace() {
-  const workspace = useContext(WorkspaceContext);
+  const workspace = use(WorkspaceContext);
   if (!workspace) {
     throw new Error("useWorkspace must be used inside WorkspaceProvider");
   }

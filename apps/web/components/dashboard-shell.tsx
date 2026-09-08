@@ -88,7 +88,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceProvider
-      value={{ user: session.data.user, organization: organization.data, role }}
+      user={session.data.user}
+      organization={organization.data}
+      role={role}
     >
       <SidebarProvider>
         <AppSidebar
