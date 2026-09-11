@@ -105,6 +105,9 @@ describe('AgentService', () => {
         { role: 'user', content: 'Are you open?' },
       ],
     });
+    expect(ai.generate.mock.calls[0]?.[0].messages[0]?.content).toContain(
+      "Reply in the customer's language and script.",
+    );
     expect(conversations.sendText).toHaveBeenCalledWith(
       'organization-1',
       'conversation-1',

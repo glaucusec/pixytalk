@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { OpenAI } from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
+import { getAIRequestTimeoutMs } from './ai.config.js';
+import {
+  AIProviderConfigurationError,
+  AIProviderResponseError,
+} from './ai.errors.js';
 import type { AIProvider } from './ai.provider.js';
 import {
   AgentResponseSchema,
@@ -16,13 +21,19 @@ export class OpenAIProvider implements AIProvider {
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
 
-    this.client = apiKey ? new OpenAI({ apiKey }) : null;
+    this.client = apiKey
+      ? new OpenAI({
+          apiKey,
+          timeout: getAIRequestTimeoutMs(),
+          maxRetries: 0,
+        })
+      : null;
     this.model = process.env.OPENAI_MODEL ?? 'gpt-5-mini';
   }
 
   async generate(input: AIRequest): Promise<AgentResponse> {
     if (!this.client) {
-      throw new Error('OPENAI_API_KEY is not configured');
+      throw new AIProviderConfigurationError('OpenAI');
     }
 
     const response = await this.client.responses.parse({
@@ -35,9 +46,17 @@ export class OpenAIProvider implements AIProvider {
     });
 
     if (!response.output_parsed) {
-      throw new Error('OpenAI returned no structured response');
+      throw new AIProviderResponseError('OpenAI');
     }
 
-    return response.output_parsed;
+    const parsedResponse = AgentResponseSchema.safeParse(
+      response.output_parsed,
+    );
+
+    if (!parsedResponse.success) {
+      throw new AIProviderResponseError('OpenAI');
+    }
+
+    return parsedResponse.data;
   }
 }

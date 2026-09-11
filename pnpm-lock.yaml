@@ -61,7 +61,7 @@ importers:
         version: 17.4.2
       openai:
         specifier: ^7.13.0
-        version: 7.13.0(undici@7.29.1)(zod@4.5.4)
+        version: 7.13.0(undici@7.29.1)(ws@8.21.3)(zod@4.5.4)
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -71,6 +71,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      sarvamai:
+        specifier: ^1.1.10
+        version: 1.1.10
       zod:
         specifier: ^4.5.4
         version: 4.5.4
@@ -4760,6 +4763,10 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
+  sarvamai@1.1.10:
+    resolution: {integrity: sha512-nynAdGimSfVT6gP1N2HoRBmHdaymzJhrFSL1Q0MOWH3LPikVtss3Cu+LAKXs1fnIHJ+MouU5qlLXiLyDP/z4eQ==}
+    engines: {node: '>=18.0.0'}
+
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
@@ -5376,6 +5383,18 @@ packages:
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
+
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
   wsl-utils@1.0.0:
     resolution: {integrity: sha512-Hl0ZOAs672vg+06kfujwRhoS6/jehvULrlFkuF2dRu6pHgA8U06h3xqNIqNNU1LTXPcedxByAR4GS6pwQK0mgA==}
@@ -9524,9 +9543,10 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@7.13.0(undici@7.29.1)(zod@4.5.4):
+  openai@7.13.0(undici@7.29.1)(ws@8.21.3)(zod@4.5.4):
     optionalDependencies:
       undici: 7.29.1
+      ws: 8.21.3
       zod: 4.5.4
 
   optionator@0.9.4:
@@ -10000,6 +10020,13 @@ snapshots:
       ret: 0.5.0
 
   safer-buffer@2.1.2: {}
+
+  sarvamai@1.1.10:
+    dependencies:
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   scheduler@0.27.0: {}
 
@@ -10786,6 +10813,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   wrappy@1.0.2: {}
+
+  ws@8.21.3: {}
 
   wsl-utils@1.0.0:
     dependencies:
