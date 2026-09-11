@@ -1,5 +1,6 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AgentService } from '../agents/agent.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import { WhatsAppWebhookService } from './whatsapp-webhook.service.js';
@@ -33,6 +34,7 @@ describe('WhatsAppWebhookService', () => {
     message: { findFirst: vi.fn(), update: vi.fn() },
   };
   const mapper = { map: vi.fn(), mapStatuses: vi.fn() };
+  const agent = { respondToInboundMessage: vi.fn() };
 
   let service: WhatsAppWebhookService;
 
@@ -51,10 +53,12 @@ describe('WhatsAppWebhookService', () => {
     });
     transaction.message.createMany.mockResolvedValue({ count: 1 });
     transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
+    agent.respondToInboundMessage.mockResolvedValue(null);
 
     service = new WhatsAppWebhookService(
       prisma as unknown as PrismaService,
       mapper as unknown as WhatsAppPayloadMapper,
+      agent as unknown as AgentService,
     );
   });
 
@@ -83,11 +87,16 @@ describe('WhatsAppWebhookService', () => {
           expect.objectContaining({
             organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
             providerMessageId: 'wamid-1',
+            senderType: 'CONTACT',
           }),
         ],
         skipDuplicates: true,
       }),
     );
+    expect(agent.respondToInboundMessage).toHaveBeenCalledWith({
+      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      conversationId: 'conversation-1',
+    });
   });
 
   it('acknowledges duplicate provider message IDs without updating the conversation', async () => {
@@ -100,6 +109,20 @@ describe('WhatsAppWebhookService', () => {
       unmatchedStatuses: 0,
     });
     expect(transaction.conversation.updateMany).not.toHaveBeenCalled();
+    expect(agent.respondToInboundMessage).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges the webhook even when automatic reply generation fails', async () => {
+    agent.respondToInboundMessage.mockRejectedValue(
+      new Error('AI provider unavailable'),
+    );
+
+    await expect(service.process({})).resolves.toEqual({
+      processed: 1,
+      duplicates: 0,
+      statusesUpdated: 0,
+      unmatchedStatuses: 0,
+    });
   });
 
   it('rejects messages for an unmapped business number', async () => {

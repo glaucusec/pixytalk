@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   MessageDirection,
+  MessageSenderType,
   MessageStatus,
   Prisma,
 } from '../generated/prisma/client.js';
@@ -12,6 +13,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
 import type { NormalizedMessageStatus } from './whatsapp.types.js';
+import { AgentService } from '../agents/agent.service.js';
 
 export interface WebhookProcessingResult {
   processed: number;
@@ -29,6 +31,12 @@ const STATUS_RANK: Record<MessageStatus, number> = {
   FAILED: 4,
 };
 
+interface PersistInboundResult {
+  inserted: boolean;
+  organizationId: string;
+  conversationId: string;
+}
+
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -40,7 +48,27 @@ export class WhatsAppWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payloadMapper: WhatsAppPayloadMapper,
+    private readonly agentService: AgentService,
   ) {}
+
+  private async generateAutomaticReply(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<void> {
+    try {
+      await this.agentService.respondToInboundMessage({
+        organizationId,
+        conversationId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown AI processing error';
+
+      this.logger.error(
+        `AI reply failed for conversation ${conversationId}: ${message}`,
+      );
+    }
+  }
 
   async process(payload: unknown): Promise<WebhookProcessingResult> {
     const events = this.payloadMapper.map(payload);
@@ -53,12 +81,20 @@ export class WhatsAppWebhookService {
     };
 
     for (const event of events) {
-      const inserted = await this.persistInboundMessage(event);
+      const persisted = await this.persistInboundMessage(event);
 
-      if (inserted) {
-        result.processed += 1;
-      } else {
+      if (!persisted.inserted) {
         result.duplicates += 1;
+        continue;
+      }
+
+      result.processed += 1;
+
+      if (event.type === 'TEXT' && event.text) {
+        await this.generateAutomaticReply(
+          persisted.organizationId,
+          persisted.conversationId,
+        );
       }
     }
 
@@ -98,9 +134,7 @@ export class WhatsAppWebhookService {
     });
 
     if (!message || message.conversation.WhatsAppAccountId !== account.id) {
-      this.logger.warn(
-        `Ignoring a WhatsApp status for an unknown message`,
-      );
+      this.logger.warn(`Ignoring a WhatsApp status for an unknown message`);
       return false;
     }
 
@@ -122,7 +156,7 @@ export class WhatsAppWebhookService {
 
   private async persistInboundMessage(
     event: NormalizedInboundMessage,
-  ): Promise<boolean> {
+  ): Promise<PersistInboundResult> {
     return this.prisma.$transaction(async (transaction) => {
       const account = await transaction.whatsAppAccount.findUnique({
         where: { phoneNumberId: event.phoneNumberId },
@@ -193,13 +227,18 @@ export class WhatsAppWebhookService {
                 : toJsonValue(event.content),
             rawPayload: toJsonValue(event.rawPayload),
             providerTimestamp: event.providerTimestamp,
+            senderType: MessageSenderType.CONTACT,
           },
         ],
         skipDuplicates: true,
       });
 
       if (message.count === 0) {
-        return false;
+        return {
+          inserted: false,
+          organizationId: account.organizationId,
+          conversationId: conversation.id,
+        };
       }
 
       await transaction.conversation.updateMany({
@@ -217,7 +256,11 @@ export class WhatsAppWebhookService {
         `Stored inbound WhatsApp message ${event.providerMessageId} for organization ${account.organizationId}`,
       );
 
-      return true;
+      return {
+        inserted: true,
+        conversationId: conversation.id,
+        organizationId: account.organizationId,
+      };
     });
   }
 }

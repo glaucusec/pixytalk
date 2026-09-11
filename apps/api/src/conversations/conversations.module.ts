@@ -16,5 +16,6 @@ import { ConversationsService } from './conversations.service.js';
       useExisting: WhatsAppCloudProvider,
     },
   ],
+  exports: [ConversationsService],
 })
 export class ConversationsModule {}

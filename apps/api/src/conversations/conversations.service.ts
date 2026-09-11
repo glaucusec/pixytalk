@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import {
   MessageDirection,
+  MessageSenderType,
   MessageStatus,
   MessageType,
   Prisma,
@@ -48,6 +49,7 @@ export class ConversationsService {
           select: {
             id: true,
             direction: true,
+            senderType: true,
             status: true,
             text: true,
             type: true,
@@ -65,7 +67,7 @@ export class ConversationsService {
         ...conversation,
         lastMessage: messages[0] ?? null,
       })),
-      nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
+      nextCursor: hasMore ? (items.at(-1)?.id ?? null) : null,
     };
   }
 
@@ -105,7 +107,7 @@ export class ConversationsService {
 
     return {
       items: page.reverse(),
-      nextCursor: hasMore ? page[0]?.id ?? null : null,
+      nextCursor: hasMore ? (page[0]?.id ?? null) : null,
     };
   }
 
@@ -113,6 +115,7 @@ export class ConversationsService {
     organizationId: string,
     conversationId: string,
     text: string,
+    senderType: MessageSenderType = MessageSenderType.HUMAN,
   ) {
     const conversation = await this.requireConversation(
       organizationId,
@@ -125,6 +128,7 @@ export class ConversationsService {
         conversationId,
         providerMessageId: `local:${randomUUID()}`,
         direction: MessageDirection.OUTBOUND,
+        senderType,
         type: MessageType.TEXT,
         status: MessageStatus.PENDING,
         text,

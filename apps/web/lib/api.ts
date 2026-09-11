@@ -17,10 +17,13 @@ export type MessageStatus =
   | "READ"
   | "FAILED";
 
+export type MessageSenderType = "CONTACT" | "HUMAN" | "AI" | "SYSTEM";
+
 export type Message = {
   id: string;
   conversationId: string;
   direction: "INBOUND" | "OUTBOUND";
+  senderType: MessageSenderType;
   type: string;
   status: MessageStatus;
   text: string | null;
@@ -45,7 +48,13 @@ export type Conversation = {
   };
   lastMessage: Pick<
     Message,
-    "id" | "direction" | "status" | "text" | "type" | "providerTimestamp"
+    | "id"
+    | "direction"
+    | "senderType"
+    | "status"
+    | "text"
+    | "type"
+    | "providerTimestamp"
   > | null;
 };
 
