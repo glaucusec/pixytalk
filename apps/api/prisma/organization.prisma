@@ -12,6 +12,9 @@ model Organization {
   contacts         Contact[]
   conversations    Conversation[]
   messages         Message[]
+  agent            Agent?
+  knowledgeEntries KnowledgeEntry[]
+  agentToolConfigs AgentToolConfig[]
 
   @@unique([slug])
   @@map("organization")

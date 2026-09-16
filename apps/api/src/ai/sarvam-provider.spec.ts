@@ -47,6 +47,7 @@ describe('SarvamProvider', () => {
                   message: 'Namaste!',
                   intent: 'greeting',
                   requiresHuman: false,
+                  toolCall: null,
                 }),
               },
             },
@@ -67,6 +68,7 @@ describe('SarvamProvider', () => {
       message: 'Namaste!',
       intent: 'greeting',
       requiresHuman: false,
+      toolCall: null,
     });
 
     const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
