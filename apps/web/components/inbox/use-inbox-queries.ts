@@ -6,30 +6,43 @@ import {
   getConversationMessages,
   getConversations,
   sendConversationMessage,
+  updateConversationMode,
+  type ConversationMode,
 } from "@/lib/api";
-
-const POLL_INTERVAL = 5_000;
-
-export const inboxQueryKeys = {
-  conversations: (organizationId: string) =>
-    ["conversations", organizationId] as const,
-  messages: (conversationId: string) =>
-    ["conversation-messages", conversationId] as const,
-};
+import { mutationKeys, queryKeys } from "@/lib/query-keys";
 
 export function useConversations(organizationId: string) {
   return useQuery({
-    queryKey: inboxQueryKeys.conversations(organizationId),
+    queryKey: queryKeys.conversations.list(organizationId),
     queryFn: getConversations,
-    refetchInterval: POLL_INTERVAL,
   });
 }
 
 export function useConversationMessages(conversationId: string) {
   return useQuery({
-    queryKey: inboxQueryKeys.messages(conversationId),
+    queryKey: queryKeys.conversations.messages.detail(conversationId),
     queryFn: () => getConversationMessages(conversationId),
-    refetchInterval: POLL_INTERVAL,
+  });
+}
+
+export function useUpdateConversationMode({
+  conversationId,
+  organizationId,
+}: {
+  conversationId: string;
+  organizationId: string;
+}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: mutationKeys.updateConversationMode(conversationId),
+    mutationFn: (mode: ConversationMode) =>
+      updateConversationMode(conversationId, mode),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.conversations.list(organizationId),
+      });
+    },
   });
 }
 
@@ -43,16 +56,16 @@ export function useSendConversationMessage({
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationKey: ["send-conversation-message", conversationId],
+    mutationKey: mutationKeys.sendConversationMessage(conversationId),
     mutationFn: (text: string) =>
       sendConversationMessage(conversationId, text),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: inboxQueryKeys.messages(conversationId),
+          queryKey: queryKeys.conversations.messages.detail(conversationId),
         }),
         queryClient.invalidateQueries({
-          queryKey: inboxQueryKeys.conversations(organizationId),
+          queryKey: queryKeys.conversations.list(organizationId),
         }),
       ]);
     },

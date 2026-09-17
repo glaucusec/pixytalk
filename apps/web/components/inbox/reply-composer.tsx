@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useSendConversationMessage } from "@/components/inbox/use-inbox-queries";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { ConversationMode } from "@/lib/api";
 
 const replySchema = z.object({
   text: z.string().trim().min(1, "Write a message first.").max(4096),
@@ -18,9 +19,11 @@ type ReplyForm = z.infer<typeof replySchema>;
 export function ReplyComposer({
   conversationId,
   organizationId,
+  mode,
 }: {
   conversationId: string;
   organizationId: string;
+  mode: ConversationMode;
 }) {
   const form = useForm<ReplyForm>({
     resolver: zodResolver(replySchema),
@@ -30,8 +33,11 @@ export function ReplyComposer({
     conversationId,
     organizationId,
   });
+  const isHumanMode = mode === "HUMAN";
 
   async function onSubmit({ text }: ReplyForm) {
+    if (!isHumanMode) return;
+
     try {
       await sendMessage.mutateAsync(text);
       form.reset();
@@ -65,7 +71,12 @@ export function ReplyComposer({
           <Textarea
             {...form.register("text")}
             rows={1}
-            placeholder="Reply on WhatsApp…"
+            disabled={!isHumanMode || isSending}
+            placeholder={
+              isHumanMode
+                ? "Reply on WhatsApp…"
+                : "Take over this conversation to reply"
+            }
             aria-label="Message"
             aria-invalid={Boolean(validationError)}
             aria-describedby={
@@ -81,14 +92,14 @@ export function ReplyComposer({
                 !event.nativeEvent.isComposing
               ) {
                 event.preventDefault();
-                if (!isSending) void submit();
+                if (isHumanMode && !isSending) void submit();
               }
             }}
           />
           <Button
             type="submit"
             size="icon-lg"
-            disabled={isSending}
+            disabled={!isHumanMode || isSending}
             aria-label="Send message"
             className="rounded-xl"
           >
@@ -102,7 +113,9 @@ export function ReplyComposer({
         <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
           <span id="message-validation">{validationError}</span>
           <span id="message-help">
-            Enter to send · Shift + Enter for a new line
+            {isHumanMode
+              ? "Enter to send · Shift + Enter for a new line"
+              : "AI is currently handling this conversation"}
           </span>
         </div>
       </div>

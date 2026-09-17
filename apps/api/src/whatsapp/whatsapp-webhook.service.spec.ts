@@ -1,6 +1,8 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AgentService } from '../agents/agent.service.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import { WhatsAppWebhookService } from './whatsapp-webhook.service.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
@@ -33,6 +35,8 @@ describe('WhatsAppWebhookService', () => {
     message: { findFirst: vi.fn(), update: vi.fn() },
   };
   const mapper = { map: vi.fn(), mapStatuses: vi.fn() };
+  const agent = { respondToInboundMessage: vi.fn() };
+  const conversationEvents = { conversationChanged: vi.fn() };
 
   let service: WhatsAppWebhookService;
 
@@ -51,10 +55,13 @@ describe('WhatsAppWebhookService', () => {
     });
     transaction.message.createMany.mockResolvedValue({ count: 1 });
     transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
+    agent.respondToInboundMessage.mockResolvedValue(null);
 
     service = new WhatsAppWebhookService(
       prisma as unknown as PrismaService,
       mapper as unknown as WhatsAppPayloadMapper,
+      agent as unknown as AgentService,
+      conversationEvents as unknown as ConversationEventsService,
     );
   });
 
@@ -83,10 +90,20 @@ describe('WhatsAppWebhookService', () => {
           expect.objectContaining({
             organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
             providerMessageId: 'wamid-1',
+            senderType: 'CONTACT',
           }),
         ],
         skipDuplicates: true,
       }),
+    );
+    expect(agent.respondToInboundMessage).toHaveBeenCalledWith({
+      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      conversationId: 'conversation-1',
+    });
+    expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
+      '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      'conversation-1',
+      'message-created',
     );
   });
 
@@ -100,6 +117,20 @@ describe('WhatsAppWebhookService', () => {
       unmatchedStatuses: 0,
     });
     expect(transaction.conversation.updateMany).not.toHaveBeenCalled();
+    expect(agent.respondToInboundMessage).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges the webhook even when automatic reply generation fails', async () => {
+    agent.respondToInboundMessage.mockRejectedValue(
+      new Error('AI provider unavailable'),
+    );
+
+    await expect(service.process({})).resolves.toEqual({
+      processed: 1,
+      duplicates: 0,
+      statusesUpdated: 0,
+      unmatchedStatuses: 0,
+    });
   });
 
   it('rejects messages for an unmapped business number', async () => {
@@ -130,6 +161,8 @@ describe('WhatsAppWebhookService', () => {
     });
     prisma.message.findFirst.mockResolvedValue({
       id: 'message-1',
+      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      conversationId: 'conversation-1',
       status: 'SENT',
       conversation: { WhatsAppAccountId: 'account-1' },
     });
@@ -145,6 +178,11 @@ describe('WhatsAppWebhookService', () => {
         where: { id: 'message-1' },
         data: expect.objectContaining({ status: 'DELIVERED' }),
       }),
+    );
+    expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
+      '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      'conversation-1',
+      'message-updated',
     );
   });
 });

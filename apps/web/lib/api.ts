@@ -17,10 +17,14 @@ export type MessageStatus =
   | "READ"
   | "FAILED";
 
+export type MessageSenderType = "CONTACT" | "HUMAN" | "AI" | "SYSTEM";
+export type ConversationMode = "AI" | "HUMAN";
+
 export type Message = {
   id: string;
   conversationId: string;
   direction: "INBOUND" | "OUTBOUND";
+  senderType: MessageSenderType;
   type: string;
   status: MessageStatus;
   text: string | null;
@@ -32,6 +36,9 @@ export type Message = {
 export type Conversation = {
   id: string;
   status: "OPEN" | "CLOSED";
+  mode: ConversationMode;
+  modeChangedAt: string;
+  modeChangedById: string | null;
   lastMessageAt: string | null;
   createdAt: string;
   contact: {
@@ -45,7 +52,13 @@ export type Conversation = {
   };
   lastMessage: Pick<
     Message,
-    "id" | "direction" | "status" | "text" | "type" | "providerTimestamp"
+    | "id"
+    | "direction"
+    | "senderType"
+    | "status"
+    | "text"
+    | "type"
+    | "providerTimestamp"
   > | null;
 };
 
@@ -100,5 +113,15 @@ export function sendConversationMessage(conversationId: string, text: string) {
   return apiRequest<Message>(`/conversations/${conversationId}/messages`, {
     method: "POST",
     body: JSON.stringify({ text }),
+  });
+}
+
+export function updateConversationMode(
+  conversationId: string,
+  mode: ConversationMode,
+) {
+  return apiRequest<Conversation>(`/conversations/${conversationId}/mode`, {
+    method: "PATCH",
+    body: JSON.stringify({ mode }),
   });
 }

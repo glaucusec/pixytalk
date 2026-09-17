@@ -1,12 +1,15 @@
 import {
   BadGatewayException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  ConversationMode,
   MessageDirection,
+  MessageSenderType,
   MessageStatus,
   MessageType,
   Prisma,
@@ -16,6 +19,7 @@ import {
   MESSAGING_PROVIDER,
   type MessagingProvider,
 } from '../messaging/messaging-provider.js';
+import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 import type { ListConversationsDto } from './dto/list-conversations.dto.js';
 import type { ListMessagesDto } from './dto/list-messages.dto.js';
 
@@ -29,6 +33,7 @@ export class ConversationsService {
     private readonly prisma: PrismaService,
     @Inject(MESSAGING_PROVIDER)
     private readonly messagingProvider: MessagingProvider,
+    private readonly conversationEvents: ConversationEventsService,
   ) {}
 
   async findAll(organizationId: string, query: ListConversationsDto) {
@@ -48,6 +53,7 @@ export class ConversationsService {
           select: {
             id: true,
             direction: true,
+            senderType: true,
             status: true,
             text: true,
             type: true,
@@ -65,7 +71,7 @@ export class ConversationsService {
         ...conversation,
         lastMessage: messages[0] ?? null,
       })),
-      nextCursor: hasMore ? items.at(-1)?.id ?? null : null,
+      nextCursor: hasMore ? (items.at(-1)?.id ?? null) : null,
     };
   }
 
@@ -105,7 +111,7 @@ export class ConversationsService {
 
     return {
       items: page.reverse(),
-      nextCursor: hasMore ? page[0]?.id ?? null : null,
+      nextCursor: hasMore ? (page[0]?.id ?? null) : null,
     };
   }
 
@@ -113,11 +119,31 @@ export class ConversationsService {
     organizationId: string,
     conversationId: string,
     text: string,
+    senderType: MessageSenderType = MessageSenderType.HUMAN,
   ) {
     const conversation = await this.requireConversation(
       organizationId,
       conversationId,
     );
+
+    if (
+      senderType === MessageSenderType.HUMAN &&
+      conversation.mode !== ConversationMode.HUMAN
+    ) {
+      throw new ConflictException(
+        'Take over the conversation before sending a manual reply',
+      );
+    }
+
+    if (
+      senderType === MessageSenderType.AI &&
+      conversation.mode !== ConversationMode.AI
+    ) {
+      throw new ConflictException(
+        'AI replies are disabled while a human controls the conversation',
+      );
+    }
+
     const sentAt = new Date();
     const pendingMessage = await this.prisma.message.create({
       data: {
@@ -125,6 +151,7 @@ export class ConversationsService {
         conversationId,
         providerMessageId: `local:${randomUUID()}`,
         direction: MessageDirection.OUTBOUND,
+        senderType,
         type: MessageType.TEXT,
         status: MessageStatus.PENDING,
         text,
@@ -136,6 +163,11 @@ export class ConversationsService {
       where: { id: conversationId },
       data: { lastMessageAt: sentAt },
     });
+    this.conversationEvents.conversationChanged(
+      organizationId,
+      conversationId,
+      'message-created',
+    );
 
     try {
       const result = await this.messagingProvider.sendText({
@@ -144,7 +176,7 @@ export class ConversationsService {
         text,
       });
 
-      return await this.prisma.message.update({
+      const sentMessage = await this.prisma.message.update({
         where: { id: pendingMessage.id },
         data: {
           providerMessageId: result.providerMessageId,
@@ -152,6 +184,12 @@ export class ConversationsService {
           rawPayload: toJsonValue(result.rawResponse),
         },
       });
+      this.conversationEvents.conversationChanged(
+        organizationId,
+        conversationId,
+        'message-updated',
+      );
+      return sentMessage;
     } catch (error) {
       await this.prisma.message.update({
         where: { id: pendingMessage.id },
@@ -165,6 +203,11 @@ export class ConversationsService {
           },
         },
       });
+      this.conversationEvents.conversationChanged(
+        organizationId,
+        conversationId,
+        'message-updated',
+      );
 
       if (error instanceof BadGatewayException) throw error;
       throw new BadGatewayException('WhatsApp could not send this message');
@@ -188,5 +231,52 @@ export class ConversationsService {
     }
 
     return conversation;
+  }
+
+  async updateMode(
+    organizationId: string,
+    conversationId: string,
+    userId: string,
+    mode: ConversationMode,
+  ) {
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const conversation = await transaction.conversation.findFirst({
+        where: {
+          id: conversationId,
+          organizationId,
+        },
+      });
+
+      if (!conversation) {
+        throw new NotFoundException('Conversation not found');
+      }
+
+      if (conversation.mode === mode) {
+        return { conversation, changed: false };
+      }
+
+      const updatedConversation = await transaction.conversation.update({
+        where: {
+          id: conversation.id,
+        },
+        data: {
+          mode,
+          modeChangedAt: new Date(),
+          modeChangedById: userId,
+        },
+      });
+
+      return { conversation: updatedConversation, changed: true };
+    });
+
+    if (result.changed) {
+      this.conversationEvents.conversationChanged(
+        organizationId,
+        conversationId,
+        'mode-changed',
+      );
+    }
+
+    return result.conversation;
   }
 }

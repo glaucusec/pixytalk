@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { ConversationsService } from './conversations.service.js';
 import { ListConversationsDto } from './dto/list-conversations.dto.js';
 import { ListMessagesDto } from './dto/list-messages.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
+import { UpdateConversationModeDto } from './dto/update-conversation-mode.dto.js';
 
 @Controller('conversations')
 @OrgRoles(['owner', 'admin', 'agent'])
@@ -61,6 +63,20 @@ export class ConversationsController {
       this.organizationId(session),
       id,
       input.text,
+    );
+  }
+
+  @Patch(':id/mode')
+  updateMode(
+    @Session() session: UserSession,
+    @Param('id') id: string,
+    @Body() input: UpdateConversationModeDto,
+  ) {
+    return this.conversationsService.updateMode(
+      this.organizationId(session),
+      id,
+      session.user.id,
+      input.mode,
     );
   }
 

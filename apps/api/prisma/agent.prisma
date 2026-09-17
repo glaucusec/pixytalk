@@ -1,0 +1,48 @@
+model Agent {
+  id             String   @id @default(uuid())
+  organizationId String   @unique @db.Uuid
+  name           String
+  instructions   String   @default("")
+  isEnabled      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  knowledgeEntries KnowledgeEntry[]
+  tools            AgentToolConfig[]
+}
+
+model KnowledgeEntry {
+  id             String   @id @default(uuid())
+  organizationId String   @db.Uuid
+  agentId        String
+  category       String
+  title          String
+  content        String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent        Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
+  @@index([agentId, isActive])
+}
+
+model AgentToolConfig {
+  id             String   @id @default(uuid())
+  organizationId String   @db.Uuid
+  agentId        String
+  name           String
+  isEnabled      Boolean  @default(true)
+  configuration  Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent        Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, name])
+  @@index([organizationId, isEnabled])
+}

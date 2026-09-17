@@ -8,6 +8,18 @@ enum MessageDirection {
   OUTBOUND
 }
 
+enum MessageSenderType {
+  CONTACT
+  HUMAN
+  AI
+  SYSTEM
+}
+
+enum ConversationMode {
+  AI
+  HUMAN
+}
+
 enum MessageType {
   TEXT
   IMAGE
@@ -69,32 +81,41 @@ model Conversation {
   WhatsAppAccountId String
   contactId         String
   status            ConversationStatus @default(OPEN)
-  lastMessageAt     DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+
+  mode            ConversationMode @default(AI)
+  modeChangedAt   DateTime         @default(now())
+  modeChangedById String?          @db.Uuid
+
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   WhatsAppAccount WhatsAppAccount @relation(fields: [WhatsAppAccountId], references: [id], onDelete: Cascade)
   contact         Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
   messages        Message[]
 
+  modeChangedBy User? @relation("ConversationModeChangedBy", fields: [modeChangedById], references: [id], onDelete: SetNull)
+
   @@unique([WhatsAppAccountId, contactId])
   @@index([organizationId, lastMessageAt])
+  @@index([organizationId, mode])
 }
 
 model Message {
-  id                String           @id @default(uuid())
-  organizationId    String           @db.Uuid
+  id                String            @id @default(uuid())
+  organizationId    String            @db.Uuid
   conversationId    String
-  providerMessageId String           @unique
+  providerMessageId String            @unique
   direction         MessageDirection
+  senderType        MessageSenderType
   type              MessageType
-  status            MessageStatus    @default(RECEIVED)
+  status            MessageStatus     @default(RECEIVED)
   text              String?
   content           Json?
   providerTimestamp DateTime
   rawPayload        Json?
-  createdAt         DateTime         @default(now())
+  createdAt         DateTime          @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
