@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SarvamAI, SarvamAIClient } from 'sarvamai';
 import { z } from 'zod';
 import { getAIRequestTimeoutMs } from './ai.config.js';
@@ -13,11 +13,13 @@ import {
   type AIRequest,
 } from './ai.types.js';
 
-const DEFAULT_SARVAM_BASE_URL = 'https://api.sarvam.ai/v1';
+const DEFAULT_SARVAM_BASE_URL = 'https://api.sarvam.ai';
 const DEFAULT_SARVAM_MODEL = 'sarvam-105b-conversations';
+const DEFAULT_SARVAM_MAX_TOKENS = 1_024;
 
 @Injectable()
 export class SarvamProvider implements AIProvider {
+  private readonly logger = new Logger(SarvamProvider.name);
   private readonly client: SarvamAIClient | null;
   private readonly model: SarvamAI.SarvamModelIds;
 
@@ -40,9 +42,47 @@ export class SarvamProvider implements AIProvider {
       throw new AIProviderConfigurationError('Sarvam');
     }
 
-    const completion = await this.client.chat.completions({
+    const completion = await this.requestCompletion(input.messages);
+    const response = this.parseResponse(completion.choices[0]?.message.content);
+
+    if (response) {
+      return response;
+    }
+
+    this.logger.warn(
+      `Sarvam returned invalid structured output (finishReason=${completion.choices[0]?.finish_reason ?? 'unknown'}); retrying once`,
+    );
+
+    const retry = await this.requestCompletion([
+      ...input.messages,
+      {
+        role: 'system',
+        content:
+          'Regenerate the response and satisfy every required response-format field. Do not omit any field.',
+      },
+    ]);
+    const retriedResponse = this.parseResponse(
+      retry.choices[0]?.message.content,
+    );
+
+    if (!retriedResponse) {
+      throw new AIProviderResponseError('Sarvam');
+    }
+
+    return retriedResponse;
+  }
+
+  private requestCompletion(messages: AIRequest['messages']) {
+    if (!this.client) {
+      throw new AIProviderConfigurationError('Sarvam');
+    }
+
+    return this.client.chat.completions({
       model: this.model,
-      messages: input.messages,
+      messages,
+      max_tokens: DEFAULT_SARVAM_MAX_TOKENS,
+      reasoning_effort: 'low',
+      temperature: 0.2,
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -53,16 +93,20 @@ export class SarvamProvider implements AIProvider {
         },
       },
     });
-    const content = completion.choices[0]?.message.content;
+  }
 
-    if (!content) {
-      throw new AIProviderResponseError('Sarvam');
-    }
+  private parseResponse(content: string | undefined): AgentResponse | null {
+    if (!content) return null;
+
+    const normalized = content
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '');
 
     try {
-      return AgentResponseSchema.parse(JSON.parse(content));
+      return AgentResponseSchema.parse(JSON.parse(normalized));
     } catch {
-      throw new AIProviderResponseError('Sarvam');
+      return null;
     }
   }
 

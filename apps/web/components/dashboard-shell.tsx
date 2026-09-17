@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceProvider } from "@/components/workspace-context";
 import { getCurrentOrganization } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { queryKeys } from "@/lib/query-keys";
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -25,13 +26,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const activeOrganizationId = session.data?.session.activeOrganizationId;
 
   const organization = useQuery({
-    queryKey: ["current-organization", activeOrganizationId],
+    queryKey: queryKeys.currentOrganization(activeOrganizationId),
     queryFn: getCurrentOrganization,
     enabled: Boolean(activeOrganizationId),
   });
 
   const memberRole = useQuery({
-    queryKey: ["active-member-role", activeOrganizationId],
+    queryKey: queryKeys.activeMemberRole(activeOrganizationId),
     queryFn: async () => {
       const result = await authClient.organization.getActiveMemberRole();
       if (result.error) {
@@ -92,13 +93,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       organization={organization.data}
       role={role}
     >
-      <SidebarProvider>
+      <SidebarProvider className="h-svh overflow-clip">
         <AppSidebar
           user={session.data.user}
           organizationName={organization.data.name}
           role={role}
         />
-        <SidebarInset className="overflow-hidden">
+        <SidebarInset className="min-h-0 min-w-0 overflow-clip">
           <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4 md:px-6">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="h-5" />

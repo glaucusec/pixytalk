@@ -24,9 +24,12 @@ export const AgentResponseSchema = z
     toolCall: AIToolCallSchema.nullable(),
   })
   .refine(
-    (response) => response.message !== null || response.toolCall !== null,
+    (response) =>
+      response.requiresHuman ||
+      response.message !== null ||
+      response.toolCall !== null,
     {
-      message: 'A response must contain a message or a tool call',
+      message: 'A non-handoff response must contain a message or a tool call',
     },
   );
 

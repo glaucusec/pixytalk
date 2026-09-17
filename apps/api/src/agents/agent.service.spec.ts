@@ -4,6 +4,7 @@ import { AIService } from '../ai/ai.service.js';
 import { ConversationsService } from '../conversations/conversations.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
+  ConversationMode,
   MessageDirection,
   MessageSenderType,
 } from '../generated/prisma/client.js';
@@ -68,6 +69,7 @@ describe('AgentService', () => {
   it('generates from tenant-scoped history and sends an AI-attributed reply', async () => {
     prisma.conversation.findFirst.mockResolvedValue({
       id: 'conversation-1',
+      mode: ConversationMode.AI,
       contact: { displayName: 'Ada' },
       messages: [
         {
@@ -134,6 +136,7 @@ describe('AgentService', () => {
   it('executes an enabled trusted tool and uses its result for the reply', async () => {
     prisma.conversation.findFirst.mockResolvedValue({
       id: 'conversation-1',
+      mode: ConversationMode.AI,
       messages: [
         {
           direction: MessageDirection.INBOUND,
@@ -230,6 +233,49 @@ describe('AgentService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(ai.generate).not.toHaveBeenCalled();
+    expect(conversations.sendText).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke AI while a human controls the conversation', async () => {
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.HUMAN,
+      messages: [],
+    });
+
+    await expect(
+      service.respondToInboundMessage({
+        organizationId: 'organization-1',
+        conversationId: 'conversation-1',
+      }),
+    ).resolves.toBeNull();
+
+    expect(ai.generate).not.toHaveBeenCalled();
+    expect(conversations.sendText).not.toHaveBeenCalled();
+  });
+
+  it('discards a generated response when a human takes over before send', async () => {
+    prisma.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.AI,
+        messages: [],
+      })
+      .mockResolvedValueOnce({ mode: ConversationMode.HUMAN });
+    ai.generate.mockResolvedValue({
+      message: 'This response must not be sent.',
+      intent: 'greeting',
+      requiresHuman: false,
+      toolCall: null,
+    });
+
+    await expect(
+      service.respondToInboundMessage({
+        organizationId: 'organization-1',
+        conversationId: 'conversation-1',
+      }),
+    ).resolves.toBeNull();
+
     expect(conversations.sendText).not.toHaveBeenCalled();
   });
 });

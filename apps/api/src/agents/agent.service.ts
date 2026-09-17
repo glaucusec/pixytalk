@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import { AIService } from '../ai/ai.service.js';
 import { ConversationsService } from '../conversations/conversations.service.js';
 import {
+  ConversationMode,
   MessageDirection,
   MessageSenderType,
   MessageType,
@@ -35,6 +36,7 @@ export class AgentService {
       where: { id: input.conversationId, organizationId: input.organizationId },
       select: {
         id: true,
+        mode: true,
         messages: {
           where: { type: MessageType.TEXT, text: { not: null } },
           orderBy: [{ providerTimestamp: 'desc' }, { id: 'desc' }],
@@ -46,6 +48,10 @@ export class AgentService {
 
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
+    }
+
+    if (conversation.mode !== ConversationMode.AI) {
+      return null;
     }
 
     const agent = await this.prisma.agent.upsert({
@@ -149,6 +155,21 @@ export class AgentService {
 
     const responseMessage =
       response.message ?? this.humanFallbackResponse().message;
+
+    const currentConversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: input.conversationId,
+        organizationId: input.organizationId,
+      },
+      select: { mode: true },
+    });
+
+    if (currentConversation?.mode !== ConversationMode.AI) {
+      this.logger.log(
+        `Discarded AI response because conversation ${conversation.id} is in human mode`,
+      );
+      return null;
+    }
 
     this.logger.log(`Generated AI reply for conversation ${conversation.id}`);
 

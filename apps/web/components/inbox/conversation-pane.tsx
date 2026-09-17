@@ -2,6 +2,8 @@
 
 import {
   ArrowLeftIcon,
+  BotIcon,
+  HandIcon,
   MessageCircleMoreIcon,
   RefreshCwIcon,
 } from "lucide-react";
@@ -16,7 +18,10 @@ import {
 import { MessageBubble } from "@/components/inbox/message-bubble";
 import { ReplyComposer } from "@/components/inbox/reply-composer";
 import { MessageListSkeleton } from "@/components/inbox/inbox-skeletons";
-import { useConversationMessages } from "@/components/inbox/use-inbox-queries";
+import {
+  useConversationMessages,
+  useUpdateConversationMode,
+} from "@/components/inbox/use-inbox-queries";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -31,9 +36,13 @@ export function ConversationPane({
   organizationId: string;
   onBack: () => void;
 }) {
-  const messageEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef<number | null>(null);
   const messages = useConversationMessages(conversation.id);
+  const updateMode = useUpdateConversationMode({
+    conversationId: conversation.id,
+    organizationId,
+  });
   const messageItems = messages.data?.items ?? [];
   const messageCount = messageItems.length;
   const name = conversationName(conversation);
@@ -45,7 +54,11 @@ export function ConversationPane({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const isInitialScroll = previousMessageCountRef.current === null;
-    messageEndRef.current?.scrollIntoView({
+    const messageList = messageListRef.current;
+    if (!messageList) return;
+
+    messageList.scrollTo({
+      top: messageList.scrollHeight,
       behavior: reduceMotion || isInitialScroll ? "auto" : "smooth",
     });
     previousMessageCountRef.current = messageCount;
@@ -80,12 +93,44 @@ export function ConversationPane({
             +{conversation.contact.waId} · WhatsApp
           </p>
         </div>
-        <span className="ml-auto rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-          {conversation.status.toLowerCase()}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground sm:inline-flex">
+            {conversation.mode === "AI" ? "AI active" : "Human control"}
+          </span>
+          {conversation.mode === "AI" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={updateMode.isPending}
+              onClick={() => updateMode.mutate("HUMAN")}
+            >
+              <HandIcon aria-hidden="true" />
+              Take Over
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={updateMode.isPending}
+              onClick={() => updateMode.mutate("AI")}
+            >
+              <BotIcon aria-hidden="true" />
+              Resume AI
+            </Button>
+          )}
+        </div>
       </header>
 
-      <div className="inbox-message-field min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+      {updateMode.error ? (
+        <p role="alert" className="border-b px-5 py-2 text-xs text-destructive">
+          {updateMode.error.message}
+        </p>
+      ) : null}
+
+      <div
+        ref={messageListRef}
+        className="inbox-message-field min-h-0 min-w-0 flex-1 overscroll-contain overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8"
+      >
         <div
           className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-3"
           role="log"
@@ -129,13 +174,13 @@ export function ConversationPane({
               />
             ))
           )}
-          <div ref={messageEndRef} />
         </div>
       </div>
 
       <ReplyComposer
         conversationId={conversation.id}
         organizationId={organizationId}
+        mode={conversation.mode}
       />
     </>
   );

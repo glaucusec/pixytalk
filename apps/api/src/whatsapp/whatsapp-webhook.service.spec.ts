@@ -2,6 +2,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentService } from '../agents/agent.service.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import { WhatsAppWebhookService } from './whatsapp-webhook.service.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
@@ -35,6 +36,7 @@ describe('WhatsAppWebhookService', () => {
   };
   const mapper = { map: vi.fn(), mapStatuses: vi.fn() };
   const agent = { respondToInboundMessage: vi.fn() };
+  const conversationEvents = { conversationChanged: vi.fn() };
 
   let service: WhatsAppWebhookService;
 
@@ -59,6 +61,7 @@ describe('WhatsAppWebhookService', () => {
       prisma as unknown as PrismaService,
       mapper as unknown as WhatsAppPayloadMapper,
       agent as unknown as AgentService,
+      conversationEvents as unknown as ConversationEventsService,
     );
   });
 
@@ -97,6 +100,11 @@ describe('WhatsAppWebhookService', () => {
       organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
       conversationId: 'conversation-1',
     });
+    expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
+      '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      'conversation-1',
+      'message-created',
+    );
   });
 
   it('acknowledges duplicate provider message IDs without updating the conversation', async () => {
@@ -153,6 +161,8 @@ describe('WhatsAppWebhookService', () => {
     });
     prisma.message.findFirst.mockResolvedValue({
       id: 'message-1',
+      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      conversationId: 'conversation-1',
       status: 'SENT',
       conversation: { WhatsAppAccountId: 'account-1' },
     });
@@ -168,6 +178,11 @@ describe('WhatsAppWebhookService', () => {
         where: { id: 'message-1' },
         data: expect.objectContaining({ status: 'DELIVERED' }),
       }),
+    );
+    expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
+      '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+      'conversation-1',
+      'message-updated',
     );
   });
 });

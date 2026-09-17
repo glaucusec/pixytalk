@@ -14,6 +14,7 @@ import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
 import type { NormalizedMessageStatus } from './whatsapp.types.js';
 import { AgentService } from '../agents/agent.service.js';
+import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 
 export interface WebhookProcessingResult {
   processed: number;
@@ -49,6 +50,7 @@ export class WhatsAppWebhookService {
     private readonly prisma: PrismaService,
     private readonly payloadMapper: WhatsAppPayloadMapper,
     private readonly agentService: AgentService,
+    private readonly conversationEvents: ConversationEventsService,
   ) {}
 
   private async generateAutomaticReply(
@@ -89,6 +91,11 @@ export class WhatsAppWebhookService {
       }
 
       result.processed += 1;
+      this.conversationEvents.conversationChanged(
+        persisted.organizationId,
+        persisted.conversationId,
+        'message-created',
+      );
 
       if (event.type === 'TEXT' && event.text) {
         await this.generateAutomaticReply(
@@ -150,6 +157,11 @@ export class WhatsAppWebhookService {
         rawPayload: toJsonValue(event.rawPayload),
       },
     });
+    this.conversationEvents.conversationChanged(
+      message.organizationId,
+      message.conversationId,
+      'message-updated',
+    );
 
     return true;
   }
