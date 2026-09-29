@@ -34,12 +34,25 @@ export function DashboardOverview() {
               Good to see you, {firstName(user.name)}.
             </h1>
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-              WhatsApp is connected. Open the inbox to read customer messages
-              and reply from your shared workspace.
+              {organization.whatsappConfigured
+                ? "Your WhatsApp number is connected. Open the inbox to read customer messages and reply from your shared workspace."
+                : "Connect your WhatsApp Cloud API number, add trusted business knowledge, and then open the inbox to manage customer conversations."}
             </p>
           </div>
-          <Button render={<Link href="/dashboard/inbox" />}>
-            Open inbox
+          <Button
+            render={
+              <Link
+                href={
+                  organization.whatsappConfigured
+                    ? "/dashboard/inbox"
+                    : "/dashboard/settings"
+                }
+              />
+            }
+          >
+            {organization.whatsappConfigured
+              ? "Open inbox"
+              : "Connect WhatsApp"}
             <ArrowUpRightIcon />
           </Button>
         </section>
@@ -49,7 +62,11 @@ export function DashboardOverview() {
             icon={MessageSquareTextIcon}
             label="Conversations"
             value="Live"
-            detail="WhatsApp inbox connected"
+            detail={
+              organization.whatsappConfigured
+                ? "WhatsApp inbox connected"
+                : "Connect an account to receive messages"
+            }
           />
           <StatusCard
             icon={UsersIcon}

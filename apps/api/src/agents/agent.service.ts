@@ -14,6 +14,7 @@ import { ToolRegistryService } from './tools/tool-registry.service.js';
 export interface RespondToInboundMessageInput {
   organizationId: string;
   conversationId: string;
+  providerMessageId?: string;
 }
 
 @Injectable()
@@ -53,6 +54,8 @@ export class AgentService {
     if (conversation.mode !== ConversationMode.AI) {
       return null;
     }
+
+    if (!(await this.isLatestInboundMessage(input))) return null;
 
     const agent = await this.prisma.agent.upsert({
       where: { organizationId: input.organizationId },
@@ -161,6 +164,7 @@ export class AgentService {
     }
 
     if (response.action === 'HANDOFF') {
+      if (!(await this.isLatestInboundMessage(input))) return null;
       const handoff = await this.conversationService.handoffToHuman(
         input.organizationId,
         input.conversationId,
@@ -211,6 +215,8 @@ export class AgentService {
       return null;
     }
 
+    if (!(await this.isLatestInboundMessage(input))) return null;
+
     this.logger.log(`Generated AI reply for conversation ${conversation.id}`);
 
     const sentMessage = await this.conversationService.sendText(
@@ -221,6 +227,22 @@ export class AgentService {
     );
 
     return { response, sentMessage };
+  }
+
+  private async isLatestInboundMessage(input: RespondToInboundMessageInput) {
+    if (!input.providerMessageId) return true;
+    const latest = await this.prisma.message.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        conversationId: input.conversationId,
+        direction: MessageDirection.INBOUND,
+        type: MessageType.TEXT,
+        text: { not: null },
+      },
+      orderBy: [{ providerTimestamp: 'desc' }, { id: 'desc' }],
+      select: { providerMessageId: true },
+    });
+    return latest?.providerMessageId === input.providerMessageId;
   }
 
   private buildSystemPrompt(

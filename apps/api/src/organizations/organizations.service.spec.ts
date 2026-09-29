@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../database/prisma.service.js';
 import { OrganizationsService } from './organizations.service.js';
@@ -17,6 +17,12 @@ describe('OrganizationsService', () => {
     organization: {
       findUnique: vi.fn(),
     },
+    whatsAppAccount: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
   };
 
   let service: OrganizationsService;
@@ -27,13 +33,25 @@ describe('OrganizationsService', () => {
   });
 
   it('returns an organization by id', async () => {
-    prisma.organization.findUnique.mockResolvedValue(organization);
+    prisma.organization.findUnique.mockResolvedValue({
+      ...organization,
+      whatsAppAccounts: [],
+    });
 
-    await expect(service.findById(organization.id)).resolves.toEqual(
-      organization,
-    );
+    await expect(service.findById(organization.id)).resolves.toEqual({
+      ...organization,
+      whatsappConfigured: false,
+      whatsappDisplayPhoneNumber: null,
+    });
     expect(prisma.organization.findUnique).toHaveBeenCalledWith({
       where: { id: organization.id },
+      include: {
+        whatsAppAccounts: {
+          select: { id: true, displayPhoneNumber: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 1,
+        },
+      },
     });
   });
 
@@ -43,5 +61,58 @@ describe('OrganizationsService', () => {
     await expect(service.findById(organization.id)).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('does not assign a WhatsApp number that belongs to another tenant', async () => {
+    prisma.whatsAppAccount.findUnique.mockResolvedValue({
+      id: 'account-1',
+      organizationId: 'other-organization',
+    });
+
+    await expect(
+      service.configureWhatsAppAccount('organization-1', {
+        phoneNumberId: '12345678',
+        wabaId: '87654321',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.whatsAppAccount.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a WhatsApp mapping scoped to the current organization', async () => {
+    prisma.whatsAppAccount.findUnique.mockResolvedValue(null);
+    prisma.whatsAppAccount.findFirst.mockResolvedValue(null);
+    prisma.whatsAppAccount.create.mockResolvedValue({
+      id: 'account-1',
+      phoneNumberId: '12345678',
+      wabaId: '87654321',
+      displayPhoneNumber: '+1555010200',
+    });
+
+    await expect(
+      service.configureWhatsAppAccount('organization-1', {
+        phoneNumberId: '12345678',
+        wabaId: '87654321',
+        displayPhoneNumber: '+1555010200',
+      }),
+    ).resolves.toEqual({
+      id: 'account-1',
+      phoneNumberId: '12345678',
+      wabaId: '87654321',
+      displayPhoneNumber: '+1555010200',
+    });
+    expect(prisma.whatsAppAccount.create).toHaveBeenCalledWith({
+      data: {
+        organizationId: 'organization-1',
+        phoneNumberId: '12345678',
+        wabaId: '87654321',
+        displayPhoneNumber: '+1555010200',
+      },
+      select: {
+        id: true,
+        phoneNumberId: true,
+        wabaId: true,
+        displayPhoneNumber: true,
+      },
+    });
   });
 });

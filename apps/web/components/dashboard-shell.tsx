@@ -85,7 +85,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const role = memberRole.data ?? "member";
   const section = pathname.startsWith("/dashboard/inbox")
     ? "Inbox"
-    : "Overview";
+    : pathname.startsWith("/dashboard/knowledge")
+      ? "Assistant setup"
+      : pathname.startsWith("/dashboard/settings")
+        ? "Workspace settings"
+        : "Overview";
 
   return (
     <WorkspaceProvider
@@ -110,8 +114,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               </p>
             </div>
             <div className="ml-auto flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-              <span className="size-2 rounded-full bg-[var(--signal)]" />
-              WhatsApp connected
+              <span
+                className={`size-2 rounded-full ${organization.data.whatsappConfigured ? "bg-[var(--signal)]" : "bg-amber-500"}`}
+              />
+              {organization.data.whatsappConfigured
+                ? "WhatsApp connected"
+                : "WhatsApp setup needed"}
             </div>
           </header>
           {children}

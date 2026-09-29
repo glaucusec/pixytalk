@@ -9,6 +9,7 @@
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@pixytalk/web",
     "dev:api": "turbo run dev --filter=@pixytalk/api",
+    "dev:worker": "pnpm --filter @pixytalk/api dev:worker",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { auth } from '../auth/auth.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ConversationsGateway } from './conversations.gateway.js';
+import { RedisConversationEventTransport } from './redis-conversation-event.transport.js';
 
 vi.mock('../auth/auth.js', () => ({
   auth: { api: { getSession: vi.fn() } },
@@ -10,8 +11,10 @@ vi.mock('../auth/auth.js', () => ({
 
 describe('ConversationsGateway', () => {
   const prisma = { member: { findFirst: vi.fn() } };
+  const transport = { subscribe: vi.fn().mockResolvedValue(undefined) };
   const gateway = new ConversationsGateway(
     prisma as unknown as PrismaService,
+    transport as unknown as RedisConversationEventTransport,
   );
   const getSession = vi.mocked(auth.api.getSession);
 
@@ -85,6 +88,20 @@ describe('ConversationsGateway', () => {
     expect(emit).toHaveBeenCalledWith('conversation.changed', {
       conversationId: 'conversation-1',
       reason: 'mode-changed',
+    });
+  });
+
+  it('relays Redis events to the tenant room', async () => {
+    const emit = vi.fn();
+    const to = vi.fn().mockReturnValue({ emit });
+    gateway.server = { to } as unknown as Server;
+    gateway.afterInit();
+    const relay = transport.subscribe.mock.calls[0]?.[0];
+    relay('organization-1', 'conversation-1', 'message-created');
+    expect(to).toHaveBeenCalledWith('organization:organization-1');
+    expect(emit).toHaveBeenCalledWith('conversation.changed', {
+      conversationId: 'conversation-1',
+      reason: 'message-created',
     });
   });
 });

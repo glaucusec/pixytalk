@@ -255,10 +255,8 @@ export class ConversationsService {
         return { conversation, changed: false };
       }
 
-      const updatedConversation = await transaction.conversation.update({
-        where: {
-          id: conversation.id,
-        },
+      const updated = await transaction.conversation.updateMany({
+        where: { id: conversation.id, organizationId, mode: conversation.mode },
         data: {
           mode,
           modeChangedAt: new Date(),
@@ -267,6 +265,20 @@ export class ConversationsService {
             mode === ConversationMode.HUMAN ? 'manual_takeover' : null,
         },
       });
+
+      if (updated.count === 0) {
+        const current = await transaction.conversation.findFirst({
+          where: { id: conversationId, organizationId },
+        });
+        if (!current) throw new NotFoundException('Conversation not found');
+        return { conversation: current, changed: false };
+      }
+
+      const updatedConversation = await transaction.conversation.findFirst({
+        where: { id: conversationId, organizationId },
+      });
+      if (!updatedConversation)
+        throw new NotFoundException('Conversation not found');
 
       return { conversation: updatedConversation, changed: true };
     });
@@ -300,8 +312,12 @@ export class ConversationsService {
         return { conversation, changed: false };
       }
 
-      const updatedConversation = await transaction.conversation.update({
-        where: { id: conversation.id },
+      const updated = await transaction.conversation.updateMany({
+        where: {
+          id: conversation.id,
+          organizationId,
+          mode: ConversationMode.AI,
+        },
         data: {
           mode: ConversationMode.HUMAN,
           modeChangedAt: new Date(),
@@ -309,6 +325,20 @@ export class ConversationsService {
           handoffReason: reason,
         },
       });
+
+      if (updated.count === 0) {
+        const current = await transaction.conversation.findFirst({
+          where: { id: conversationId, organizationId },
+        });
+        if (!current) throw new NotFoundException('Conversation not found');
+        return { conversation: current, changed: false };
+      }
+
+      const updatedConversation = await transaction.conversation.findFirst({
+        where: { id: conversationId, organizationId },
+      });
+      if (!updatedConversation)
+        throw new NotFoundException('Conversation not found');
 
       return { conversation: updatedConversation, changed: true };
     });

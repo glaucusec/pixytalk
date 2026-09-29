@@ -22,19 +22,25 @@ Use Node.js 24 (`nvm use` if using nvm) and pnpm 11.9.0. Run `pnpm install` from
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Run both applications in watch mode |
-| `pnpm dev:web` | Run only the frontend on port 3000 |
-| `pnpm dev:api` | Run only the API on port 3001 |
-| `pnpm build` | Build both applications |
-| `pnpm lint` | Run each application's linter |
-| `pnpm typecheck` | Generate Next.js types and check both apps |
-| `pnpm test` | Run available unit tests (currently the API) |
-| `pnpm test:e2e` | Run available end-to-end tests (currently the API) |
-| `pnpm check` | Run lint, types, unit tests, builds, then end-to-end tests |
+| Command           | Purpose                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `pnpm dev`        | Run both applications in watch mode                        |
+| `pnpm dev:web`    | Run only the frontend on port 3000                         |
+| `pnpm dev:api`    | Run only the API on port 3001                              |
+| `pnpm dev:worker` | Run the inbound message queue worker                       |
+| `pnpm build`      | Build both applications                                    |
+| `pnpm lint`       | Run each application's linter                              |
+| `pnpm typecheck`  | Generate Next.js types and check both apps                 |
+| `pnpm test`       | Run available unit tests (currently the API)               |
+| `pnpm test:e2e`   | Run available end-to-end tests (currently the API)         |
+| `pnpm check`      | Run lint, types, unit tests, builds, then end-to-end tests |
 
-The API honors `PORT` when set. For app-specific dependency changes, use `pnpm --filter @pixytalk/api add <package>` or `pnpm --filter @pixytalk/web add <package>`. Add root tooling with `pnpm add -Dw <package>`.
+For local API and worker development, configure `apps/api/.env` with PostgreSQL,
+Redis, and a `BETTER_AUTH_SECRET`; see `apps/api/.env.example`. The web app can
+use `apps/web/.env.example`. The API honors `PORT` when set. For app-specific
+dependency changes, use `pnpm --filter @pixytalk/api add <package>` or
+`pnpm --filter @pixytalk/web add <package>`. Add root tooling with
+`pnpm add -Dw <package>`.
 
 ## Conventions
 
@@ -50,4 +56,9 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for commit messages and the review wor
 
 ## Deployment boundaries
 
-A shared repository does not require a shared deployment. The frontend and API can deploy independently. After building, run `pnpm --filter @pixytalk/web start` or `pnpm --filter @pixytalk/api start:prod`. A separate background worker process will be added when queue processing is implemented.
+A shared repository does not require a shared deployment. The frontend, API,
+and worker can deploy independently. After building, run
+`pnpm --filter @pixytalk/web start`, `pnpm --filter @pixytalk/api start:prod`,
+and `pnpm --filter @pixytalk/api start:worker` as separate processes. See the
+[deployment guide](DEPLOYMENT.md) for container builds, migrations, and health
+probes.

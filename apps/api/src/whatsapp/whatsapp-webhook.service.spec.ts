@@ -1,6 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentService } from '../agents/agent.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
@@ -25,6 +24,7 @@ describe('WhatsAppWebhookService', () => {
     contact: { upsert: vi.fn() },
     conversation: { upsert: vi.fn(), updateMany: vi.fn() },
     message: { createMany: vi.fn() },
+    inboundProcessingJob: { create: vi.fn() },
   };
   const prisma = {
     $transaction: vi.fn(
@@ -35,7 +35,6 @@ describe('WhatsAppWebhookService', () => {
     message: { findFirst: vi.fn(), update: vi.fn() },
   };
   const mapper = { map: vi.fn(), mapStatuses: vi.fn() };
-  const agent = { respondToInboundMessage: vi.fn() };
   const conversationEvents = { conversationChanged: vi.fn() };
 
   let service: WhatsAppWebhookService;
@@ -55,12 +54,10 @@ describe('WhatsAppWebhookService', () => {
     });
     transaction.message.createMany.mockResolvedValue({ count: 1 });
     transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
-    agent.respondToInboundMessage.mockResolvedValue(null);
 
     service = new WhatsAppWebhookService(
       prisma as unknown as PrismaService,
       mapper as unknown as WhatsAppPayloadMapper,
-      agent as unknown as AgentService,
       conversationEvents as unknown as ConversationEventsService,
     );
   });
@@ -96,9 +93,12 @@ describe('WhatsAppWebhookService', () => {
         skipDuplicates: true,
       }),
     );
-    expect(agent.respondToInboundMessage).toHaveBeenCalledWith({
-      organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
-      conversationId: 'conversation-1',
+    expect(transaction.inboundProcessingJob.create).toHaveBeenCalledWith({
+      data: {
+        providerMessageId: 'wamid-1',
+        organizationId: '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
+        conversationId: 'conversation-1',
+      },
     });
     expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
       '9e5fc959-f084-45e9-9f8e-89e2b0b24688',
@@ -117,20 +117,17 @@ describe('WhatsAppWebhookService', () => {
       unmatchedStatuses: 0,
     });
     expect(transaction.conversation.updateMany).not.toHaveBeenCalled();
-    expect(agent.respondToInboundMessage).not.toHaveBeenCalled();
+    expect(transaction.inboundProcessingJob.create).not.toHaveBeenCalled();
   });
 
-  it('acknowledges the webhook even when automatic reply generation fails', async () => {
-    agent.respondToInboundMessage.mockRejectedValue(
-      new Error('AI provider unavailable'),
-    );
-
+  it('persists processing work atomically with a new inbound text message', async () => {
     await expect(service.process({})).resolves.toEqual({
       processed: 1,
       duplicates: 0,
       statusesUpdated: 0,
       unmatchedStatuses: 0,
     });
+    expect(transaction.inboundProcessingJob.create).toHaveBeenCalledTimes(1);
   });
 
   it('rejects messages for an unmapped business number', async () => {

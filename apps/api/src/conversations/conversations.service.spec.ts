@@ -11,7 +11,11 @@ import { ConversationsService } from './conversations.service.js';
 
 describe('ConversationsService', () => {
   const transaction = {
-    conversation: { findFirst: vi.fn(), update: vi.fn() },
+    conversation: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
   };
   const prisma = {
     $transaction: vi.fn(
@@ -78,10 +82,16 @@ describe('ConversationsService', () => {
       id: 'conversation-1',
       mode: ConversationMode.AI,
     });
-    transaction.conversation.update.mockResolvedValue({
-      id: 'conversation-1',
-      mode: ConversationMode.HUMAN,
-    });
+    transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
+    transaction.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.AI,
+      })
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.HUMAN,
+      });
 
     await expect(
       service.updateMode(
@@ -98,8 +108,12 @@ describe('ConversationsService', () => {
         organizationId: 'organization-1',
       },
     });
-    expect(transaction.conversation.update).toHaveBeenCalledWith({
-      where: { id: 'conversation-1' },
+    expect(transaction.conversation.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'conversation-1',
+        organizationId: 'organization-1',
+        mode: ConversationMode.AI,
+      },
       data: {
         mode: ConversationMode.HUMAN,
         modeChangedAt: expect.any(Date),
@@ -120,11 +134,17 @@ describe('ConversationsService', () => {
       mode: ConversationMode.HUMAN,
       handoffReason: 'customer_requested_human',
     });
-    transaction.conversation.update.mockResolvedValue({
-      id: 'conversation-1',
-      mode: ConversationMode.AI,
-      handoffReason: null,
-    });
+    transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
+    transaction.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.HUMAN,
+      })
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.AI,
+        handoffReason: null,
+      });
 
     await service.updateMode(
       'organization-1',
@@ -133,8 +153,12 @@ describe('ConversationsService', () => {
       ConversationMode.AI,
     );
 
-    expect(transaction.conversation.update).toHaveBeenCalledWith({
-      where: { id: 'conversation-1' },
+    expect(transaction.conversation.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'conversation-1',
+        organizationId: 'organization-1',
+        mode: ConversationMode.HUMAN,
+      },
       data: {
         mode: ConversationMode.AI,
         modeChangedAt: expect.any(Date),
@@ -190,11 +214,17 @@ describe('ConversationsService', () => {
       id: 'conversation-1',
       mode: ConversationMode.AI,
     });
-    transaction.conversation.update.mockResolvedValue({
-      id: 'conversation-1',
-      mode: ConversationMode.HUMAN,
-      handoffReason: 'customer_requested_human',
-    });
+    transaction.conversation.updateMany.mockResolvedValue({ count: 1 });
+    transaction.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.AI,
+      })
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.HUMAN,
+        handoffReason: 'customer_requested_human',
+      });
 
     await expect(
       service.handoffToHuman(
@@ -204,8 +234,12 @@ describe('ConversationsService', () => {
       ),
     ).resolves.toMatchObject({ changed: true });
 
-    expect(transaction.conversation.update).toHaveBeenCalledWith({
-      where: { id: 'conversation-1' },
+    expect(transaction.conversation.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'conversation-1',
+        organizationId: 'organization-1',
+        mode: ConversationMode.AI,
+      },
       data: {
         mode: ConversationMode.HUMAN,
         modeChangedAt: expect.any(Date),
@@ -234,7 +268,28 @@ describe('ConversationsService', () => {
       ),
     ).resolves.toMatchObject({ changed: false });
 
-    expect(transaction.conversation.update).not.toHaveBeenCalled();
+    expect(transaction.conversation.updateMany).not.toHaveBeenCalled();
+    expect(conversationEvents.conversationChanged).not.toHaveBeenCalled();
+  });
+
+  it('allows only one concurrent automatic handoff to claim AI mode', async () => {
+    transaction.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.AI,
+      })
+      .mockResolvedValueOnce({
+        id: 'conversation-1',
+        mode: ConversationMode.HUMAN,
+      });
+    transaction.conversation.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.handoffToHuman('organization-1', 'conversation-1', 'requested'),
+    ).resolves.toMatchObject({
+      changed: false,
+      conversation: { mode: 'HUMAN' },
+    });
     expect(conversationEvents.conversationChanged).not.toHaveBeenCalled();
   });
 });

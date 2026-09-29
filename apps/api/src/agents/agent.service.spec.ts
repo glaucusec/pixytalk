@@ -14,6 +14,7 @@ import { ToolRegistryService } from './tools/tool-registry.service.js';
 describe('AgentService', () => {
   const prisma = {
     conversation: { findFirst: vi.fn() },
+    message: { findFirst: vi.fn() },
     agent: { upsert: vi.fn() },
   };
   const ai = { generate: vi.fn() };
@@ -264,6 +265,56 @@ describe('AgentService', () => {
     ).resolves.toBeNull();
 
     expect(ai.generate).not.toHaveBeenCalled();
+    expect(conversations.sendText).not.toHaveBeenCalled();
+  });
+
+  it('skips an older inbound job when a newer message already exists', async () => {
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+      messages: [],
+    });
+    prisma.message.findFirst.mockResolvedValue({
+      providerMessageId: 'wamid-new',
+    });
+
+    await expect(
+      service.respondToInboundMessage({
+        organizationId: 'organization-1',
+        conversationId: 'conversation-1',
+        providerMessageId: 'wamid-old',
+      }),
+    ).resolves.toBeNull();
+
+    expect(ai.generate).not.toHaveBeenCalled();
+    expect(conversations.sendText).not.toHaveBeenCalled();
+  });
+
+  it('discards a generated reply if a newer inbound message arrives before send', async () => {
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+      messages: [],
+    });
+    prisma.message.findFirst
+      .mockResolvedValueOnce({ providerMessageId: 'wamid-old' })
+      .mockResolvedValueOnce({ providerMessageId: 'wamid-new' });
+    ai.generate.mockResolvedValue({
+      action: 'REPLY',
+      message: 'Reply to old message',
+      intent: 'greeting',
+      handoffReason: null,
+      toolCall: null,
+    });
+
+    await expect(
+      service.respondToInboundMessage({
+        organizationId: 'organization-1',
+        conversationId: 'conversation-1',
+        providerMessageId: 'wamid-old',
+      }),
+    ).resolves.toBeNull();
+
     expect(conversations.sendText).not.toHaveBeenCalled();
   });
 
