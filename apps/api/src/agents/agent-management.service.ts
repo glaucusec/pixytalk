@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { ConfigureAgentToolDto } from './dto/configure-agent-tool.dto.js';
@@ -74,6 +74,17 @@ export class AgentManagementService {
         content: input.content,
       },
     });
+  }
+
+  async deleteKnowledge(organizationId: string, knowledgeEntryId: string) {
+    const agent = await this.requireAgent(organizationId);
+    const result = await this.prisma.knowledgeEntry.deleteMany({
+      where: { id: knowledgeEntryId, organizationId, agentId: agent.id },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Knowledge entry not found');
+    }
+    return { deleted: true };
   }
 
   async listTools(organizationId: string) {

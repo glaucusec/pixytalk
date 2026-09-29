@@ -3,8 +3,17 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { createHmac } from 'node:crypto';
+import { getQueueToken } from '@nestjs/bullmq';
 import { AppModule } from './../src/app.module.js';
 import { PrismaService } from './../src/database/prisma.service.js';
+import { INBOUND_PROCESSING_QUEUE } from './../src/queue/queue.constants.js';
+
+const testQueue = {
+  add: async () => ({ id: 'test-job' }),
+  getJobCounts: async () => ({ waiting: 0 }),
+  close: async () => undefined,
+};
+const testPrisma = { $queryRaw: async () => 1 };
 
 describe('Authentication and organization access (e2e)', () => {
   let app: INestApplication<App>;
@@ -14,7 +23,9 @@ describe('Authentication and organization access (e2e)', () => {
       imports: [AppModule],
     })
       .overrideProvider(PrismaService)
-      .useValue({})
+      .useValue(testPrisma)
+      .overrideProvider(getQueueToken(INBOUND_PROCESSING_QUEUE))
+      .useValue(testQueue)
       .compile();
 
     app = moduleFixture.createNestApplication({ bodyParser: false });
@@ -25,6 +36,18 @@ describe('Authentication and organization access (e2e)', () => {
     return request(app.getHttpServer())
       .get('/organizations/current')
       .expect(401);
+  });
+
+  it('exposes anonymous liveness and readiness checks', async () => {
+    await request(app.getHttpServer())
+      .get('/health/live')
+      .expect(200)
+      .expect({ status: 'ok' });
+
+    await request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(200)
+      .expect({ status: 'ok', checks: { database: 'ok', redis: 'ok' } });
   });
 
   afterEach(async () => {
@@ -46,6 +69,8 @@ describe('WhatsApp webhook (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue({})
+      .overrideProvider(getQueueToken(INBOUND_PROCESSING_QUEUE))
+      .useValue(testQueue)
       .compile();
 
     app = moduleFixture.createNestApplication({ bodyParser: false });

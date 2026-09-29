@@ -15,6 +15,7 @@ model Organization {
   agent            Agent?
   knowledgeEntries KnowledgeEntry[]
   agentToolConfigs AgentToolConfig[]
+  inboundProcessingJobs InboundProcessingJob[]
 
   @@unique([slug])
   @@map("organization")

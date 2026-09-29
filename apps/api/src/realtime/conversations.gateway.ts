@@ -68,6 +68,11 @@ export class ConversationsGateway
     conversationId: string,
     reason: ConversationChangeReason,
   ) {
+    // The gateway is also provided in the worker application context, where
+    // Nest does not attach a Socket.IO server. Background message processing
+    // must continue even when there are no connected websocket clients.
+    if (!this.server) return;
+
     this.server
       .to(this.organizationRoom(organizationId))
       .emit('conversation.changed', { conversationId, reason });

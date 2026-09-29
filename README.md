@@ -29,13 +29,13 @@ The goal is simple: let AI handle routine enquiries using the business’s own i
 
 The MVP is planned around five core capabilities:
 
-| Capability | What it means for your business |
-| --- | --- |
-| **Shared inbox** | Read and reply to WhatsApp conversations in one place. |
-| **AI assistance** | Answer routine questions using your business information and conversation history. |
-| **Business knowledge** | Give the assistant your FAQs, services, and policies. |
-| **Trusted answers** | Use business rules and connected tools for facts such as pricing. |
-| **Human takeover** | Step into a conversation, pause AI replies, and resume assistance when appropriate. |
+| Capability             | What it means for your business                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| **Shared inbox**       | Read and reply to WhatsApp conversations in one place.                              |
+| **AI assistance**      | Answer routine questions using your business information and conversation history.  |
+| **Business knowledge** | Give the assistant your FAQs, services, and policies.                               |
+| **Trusted answers**    | Use business rules and connected tools for facts such as pricing.                   |
+| **Human takeover**     | Step into a conversation, pause AI replies, and resume assistance when appropriate. |
 
 Each business will have its own workspace, team access, conversations, and assistant settings.
 
@@ -52,9 +52,13 @@ Kerala Tripist is the first planned pilot customer. PixyTalk is being designed a
 
 ## Project status
 
-PixyTalk is in early development. The capabilities above describe the intended first release; they are not yet available as a finished product.
+The first MVP is implemented in the repository: workspace authentication and
+onboarding, a WhatsApp inbox, tenant-configurable assistant knowledge, trusted
+pricing tools, human takeover, queued inbound processing, and deployment
+configuration. A production pilot still needs real Meta and AI credentials,
+hosted infrastructure, and end-to-end verification against those services.
 
-The immediate focus is a working WhatsApp inbox, useful AI replies, human takeover, and a tested pilot deployment.
+Kerala Tripist is a sample workspace, not a hardcoded product dependency.
 
 ## Local development
 
@@ -67,13 +71,18 @@ pnpm install
 pnpm dev
 ```
 
-The frontend runs at `http://localhost:3000` and the API at `http://localhost:3001`. These are starter applications; the product features above are still being built.
+Run `pnpm dev:worker` in a second terminal to process inbound messages. The
+frontend runs at `http://localhost:3000` and the API at
+`http://localhost:3001`. Start PostgreSQL and Redis and apply the Prisma
+migrations first; see the development and deployment guides for configuration.
 
 See [the development guide](docs/DEVELOPMENT.md) for workspace commands and structure.
+See [the deployment guide](docs/DEPLOYMENT.md) for the Docker-based full-stack
+workflow, migrations, health probes, and production environment configuration.
 
 ## What comes next
 
-After validating the core experience, the roadmap includes easier business onboarding, team invitations, and more integrations. Additional channels and advanced automation will follow as product needs become clearer.
+The next roadmap items are easier onboarding, team invitations, and additional integrations. Additional channels and advanced automation can follow as product needs become clearer.
 
 ## Working on PixyTalk
 

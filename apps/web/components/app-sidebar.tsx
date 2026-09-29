@@ -56,14 +56,14 @@ const navigation = [
     title: "Knowledge",
     href: "/dashboard/knowledge",
     icon: BookOpenTextIcon,
-    available: false,
+    available: true,
   },
   { title: "Team", href: "/dashboard/team", icon: UsersIcon, available: false },
   {
     title: "Settings",
     href: "/dashboard/settings",
     icon: Settings2Icon,
-    available: false,
+    available: true,
   },
 ];
 

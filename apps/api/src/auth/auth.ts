@@ -19,14 +19,29 @@ function requiredEnvironment(name: string): string {
   return value;
 }
 
+function getCookieSameSite(): 'lax' | 'strict' | 'none' {
+  const value = process.env.AUTH_COOKIE_SAME_SITE ?? 'lax';
+  if (value === 'lax' || value === 'strict' || value === 'none') return value;
+  throw new Error('AUTH_COOKIE_SAME_SITE must be lax, strict, or none');
+}
+
+const betterAuthUrl = requiredEnvironment('BETTER_AUTH_URL');
+const webUrl = requiredEnvironment('WEB_URL');
+if (
+  process.env.NODE_ENV === 'production' &&
+  (!betterAuthUrl.startsWith('https://') || !webUrl.startsWith('https://'))
+) {
+  throw new Error('BETTER_AUTH_URL and WEB_URL must use HTTPS in production');
+}
+
 export const auth = betterAuth({
   appName: 'Pixytalk',
 
-  baseURL: requiredEnvironment('BETTER_AUTH_URL'),
+  baseURL: betterAuthUrl,
   basePath: '/api/auth',
   secret: requiredEnvironment('BETTER_AUTH_SECRET'),
 
-  trustedOrigins: [requiredEnvironment('WEB_URL')],
+  trustedOrigins: [webUrl],
 
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
 
@@ -39,6 +54,12 @@ export const auth = betterAuth({
 
   advanced: {
     database: { generateId: 'uuid', joins: true },
+    useSecureCookies: process.env.NODE_ENV === 'production',
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: getCookieSameSite(),
+      secure: process.env.NODE_ENV === 'production',
+    },
   },
 
   plugins: [

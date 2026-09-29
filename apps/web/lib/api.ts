@@ -5,17 +5,21 @@ export type CurrentOrganization = {
   logo: string | null;
   metadata: string | null;
   createdAt: string;
+  whatsappConfigured: boolean;
+  whatsappDisplayPhoneNumber: string | null;
+};
+
+export type WhatsAppAccount = {
+  id: string;
+  phoneNumberId: string;
+  wabaId: string;
+  displayPhoneNumber: string | null;
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export type MessageStatus =
-  | "PENDING"
-  | "RECEIVED"
-  | "SENT"
-  | "DELIVERED"
-  | "READ"
-  | "FAILED";
+  "PENDING" | "RECEIVED" | "SENT" | "DELIVERED" | "READ" | "FAILED";
 
 export type MessageSenderType = "CONTACT" | "HUMAN" | "AI" | "SYSTEM";
 export type ConversationMode = "AI" | "HUMAN";
@@ -66,6 +70,30 @@ export type Conversation = {
 export type Paginated<T> = {
   items: T[];
   nextCursor: string | null;
+};
+
+export type KnowledgeEntry = {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
+export type AgentToolConfiguration = {
+  id: string;
+  name: string;
+  isEnabled: boolean;
+  configuration: Record<string, unknown>;
+};
+
+export type AgentSettings = {
+  id: string;
+  name: string;
+  instructions: string;
+  isEnabled: boolean;
+  knowledgeEntries: KnowledgeEntry[];
+  tools: AgentToolConfiguration[];
 };
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -124,5 +152,70 @@ export function updateConversationMode(
   return apiRequest<Conversation>(`/conversations/${conversationId}/mode`, {
     method: "PATCH",
     body: JSON.stringify({ mode }),
+  });
+}
+
+export function getAgentSettings() {
+  return apiRequest<AgentSettings>("/agent");
+}
+
+export function updateAgentSettings(input: {
+  name: string;
+  instructions: string;
+  isEnabled: boolean;
+}) {
+  return apiRequest<AgentSettings>("/agent", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function createKnowledgeEntry(input: {
+  category: string;
+  title: string;
+  content: string;
+}) {
+  return apiRequest<KnowledgeEntry>("/agent/knowledge", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteKnowledgeEntry(id: string) {
+  return apiRequest<{ deleted: true }>(
+    `/agent/knowledge/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function configureAgentTool(input: {
+  name: string;
+  isEnabled: boolean;
+  configuration: Record<string, unknown>;
+}) {
+  return apiRequest<AgentToolConfiguration>(
+    `/agent/tools/${encodeURIComponent(input.name)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        isEnabled: input.isEnabled,
+        configuration: input.configuration,
+      }),
+    },
+  );
+}
+
+export function getWhatsAppAccount() {
+  return apiRequest<WhatsAppAccount | null>("/organizations/current/whatsapp");
+}
+
+export function configureWhatsAppAccount(input: {
+  phoneNumberId: string;
+  wabaId: string;
+  displayPhoneNumber?: string;
+}) {
+  return apiRequest<WhatsAppAccount>("/organizations/current/whatsapp", {
+    method: "PUT",
+    body: JSON.stringify(input),
   });
 }

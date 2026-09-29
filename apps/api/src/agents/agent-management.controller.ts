@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -18,16 +19,17 @@ import { CreateKnowledgeEntryDto } from './dto/create-knowledge-entry.dto.js';
 import { UpdateAgentDto } from './dto/update-agent.dto.js';
 
 @Controller('agent')
-@OrgRoles(['owner', 'admin'])
 export class AgentManagementController {
   constructor(private readonly agentManagement: AgentManagementService) {}
 
   @Get()
+  @OrgRoles(['owner', 'admin', 'agent'])
   getCurrent(@Session() session: UserSession) {
     return this.agentManagement.getCurrent(this.organizationId(session));
   }
 
   @Put()
+  @OrgRoles(['owner', 'admin'])
   updateCurrent(
     @Session() session: UserSession,
     @Body() input: UpdateAgentDto,
@@ -39,11 +41,13 @@ export class AgentManagementController {
   }
 
   @Get('knowledge')
+  @OrgRoles(['owner', 'admin', 'agent'])
   listKnowledge(@Session() session: UserSession) {
     return this.agentManagement.listKnowledge(this.organizationId(session));
   }
 
   @Post('knowledge')
+  @OrgRoles(['owner', 'admin'])
   createKnowledge(
     @Session() session: UserSession,
     @Body() input: CreateKnowledgeEntryDto,
@@ -54,12 +58,23 @@ export class AgentManagementController {
     );
   }
 
+  @Delete('knowledge/:id')
+  @OrgRoles(['owner', 'admin'])
+  deleteKnowledge(@Session() session: UserSession, @Param('id') id: string) {
+    return this.agentManagement.deleteKnowledge(
+      this.organizationId(session),
+      id,
+    );
+  }
+
   @Get('tools')
+  @OrgRoles(['owner', 'admin', 'agent'])
   listTools(@Session() session: UserSession) {
     return this.agentManagement.listTools(this.organizationId(session));
   }
 
   @Put('tools/:name')
+  @OrgRoles(['owner', 'admin'])
   configureTool(
     @Session() session: UserSession,
     @Param('name') name: string,

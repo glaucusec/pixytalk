@@ -13,7 +13,6 @@ import { PrismaService } from '../database/prisma.service.js';
 import { WhatsAppPayloadMapper } from './whatsapp-payload.mapper.js';
 import type { NormalizedInboundMessage } from './whatsapp.types.js';
 import type { NormalizedMessageStatus } from './whatsapp.types.js';
-import { AgentService } from '../agents/agent.service.js';
 import { ConversationEventsService } from '../realtime/conversation-events.service.js';
 
 export interface WebhookProcessingResult {
@@ -49,28 +48,8 @@ export class WhatsAppWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payloadMapper: WhatsAppPayloadMapper,
-    private readonly agentService: AgentService,
     private readonly conversationEvents: ConversationEventsService,
   ) {}
-
-  private async generateAutomaticReply(
-    organizationId: string,
-    conversationId: string,
-  ): Promise<void> {
-    try {
-      await this.agentService.respondToInboundMessage({
-        organizationId,
-        conversationId,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown AI processing error';
-
-      this.logger.error(
-        `AI reply failed for conversation ${conversationId}: ${message}`,
-      );
-    }
-  }
 
   async process(payload: unknown): Promise<WebhookProcessingResult> {
     const events = this.payloadMapper.map(payload);
@@ -96,13 +75,6 @@ export class WhatsAppWebhookService {
         persisted.conversationId,
         'message-created',
       );
-
-      if (event.type === 'TEXT' && event.text) {
-        await this.generateAutomaticReply(
-          persisted.organizationId,
-          persisted.conversationId,
-        );
-      }
     }
 
     for (const status of statuses) {
@@ -251,6 +223,16 @@ export class WhatsAppWebhookService {
           organizationId: account.organizationId,
           conversationId: conversation.id,
         };
+      }
+
+      if (event.type === 'TEXT' && event.text) {
+        await transaction.inboundProcessingJob.create({
+          data: {
+            providerMessageId: event.providerMessageId,
+            organizationId: account.organizationId,
+            conversationId: conversation.id,
+          },
+        });
       }
 
       await transaction.conversation.updateMany({
