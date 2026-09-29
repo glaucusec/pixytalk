@@ -8,7 +8,7 @@ import {
 } from './ai.errors.js';
 import type { AIProvider } from './ai.provider.js';
 import {
-  AgentResponseSchema,
+  createAgentResponseSchema,
   type AgentResponse,
   type AIRequest,
 } from './ai.types.js';
@@ -42,8 +42,12 @@ export class SarvamProvider implements AIProvider {
       throw new AIProviderConfigurationError('Sarvam');
     }
 
-    const completion = await this.requestCompletion(input.messages);
-    const response = this.parseResponse(completion.choices[0]?.message.content);
+    const responseSchema = createAgentResponseSchema(input.tools);
+    const completion = await this.requestCompletion(input, responseSchema);
+    const response = this.parseResponse(
+      completion.choices[0]?.message.content,
+      responseSchema,
+    );
 
     if (response) {
       return response;
@@ -53,16 +57,23 @@ export class SarvamProvider implements AIProvider {
       `Sarvam returned invalid structured output (finishReason=${completion.choices[0]?.finish_reason ?? 'unknown'}); retrying once`,
     );
 
-    const retry = await this.requestCompletion([
-      ...input.messages,
+    const retry = await this.requestCompletion(
       {
-        role: 'system',
-        content:
-          'Regenerate the response and satisfy every required response-format field. Do not omit any field.',
+        ...input,
+        messages: [
+          ...input.messages,
+          {
+            role: 'system',
+            content:
+              'Regenerate the decision and satisfy every required response-format field. Do not omit any field.',
+          },
+        ],
       },
-    ]);
+      responseSchema,
+    );
     const retriedResponse = this.parseResponse(
       retry.choices[0]?.message.content,
+      responseSchema,
     );
 
     if (!retriedResponse) {
@@ -72,14 +83,17 @@ export class SarvamProvider implements AIProvider {
     return retriedResponse;
   }
 
-  private requestCompletion(messages: AIRequest['messages']) {
+  private requestCompletion(
+    input: AIRequest,
+    responseSchema: ReturnType<typeof createAgentResponseSchema>,
+  ) {
     if (!this.client) {
       throw new AIProviderConfigurationError('Sarvam');
     }
 
     return this.client.chat.completions({
       model: this.model,
-      messages,
+      messages: input.messages,
       max_tokens: DEFAULT_SARVAM_MAX_TOKENS,
       reasoning_effort: 'low',
       temperature: 0.2,
@@ -88,14 +102,17 @@ export class SarvamProvider implements AIProvider {
         json_schema: {
           name: 'pixytalk_agent_schema',
           description: 'A customer-support reply and routing decision',
-          schema: z.toJSONSchema(AgentResponseSchema, { target: 'draft-7' }),
+          schema: z.toJSONSchema(responseSchema, { target: 'draft-7' }),
           strict: true,
         },
       },
     });
   }
 
-  private parseResponse(content: string | undefined): AgentResponse | null {
+  private parseResponse(
+    content: string | undefined,
+    responseSchema: ReturnType<typeof createAgentResponseSchema>,
+  ): AgentResponse | null {
     if (!content) return null;
 
     const normalized = content
@@ -104,7 +121,7 @@ export class SarvamProvider implements AIProvider {
       .replace(/\s*```$/, '');
 
     try {
-      return AgentResponseSchema.parse(JSON.parse(normalized));
+      return responseSchema.parse(JSON.parse(normalized)) as AgentResponse;
     } catch {
       return null;
     }

@@ -8,7 +8,7 @@ import {
 } from './ai.errors.js';
 import type { AIProvider } from './ai.provider.js';
 import {
-  AgentResponseSchema,
+  createAgentResponseSchema,
   type AgentResponse,
   type AIRequest,
 } from './ai.types.js';
@@ -36,12 +36,13 @@ export class OpenAIProvider implements AIProvider {
       throw new AIProviderConfigurationError('OpenAI');
     }
 
+    const responseSchema = createAgentResponseSchema(input.tools);
     const response = await this.client.responses.parse({
       model: this.model,
       store: false,
       input: input.messages,
       text: {
-        format: zodTextFormat(AgentResponseSchema, 'pixytalk_agent_schema'),
+        format: zodTextFormat(responseSchema, 'pixytalk_agent_schema'),
       },
     });
 
@@ -49,9 +50,7 @@ export class OpenAIProvider implements AIProvider {
       throw new AIProviderResponseError('OpenAI');
     }
 
-    const parsedResponse = AgentResponseSchema.safeParse(
-      response.output_parsed,
-    );
+    const parsedResponse = responseSchema.safeParse(response.output_parsed);
 
     if (!parsedResponse.success) {
       throw new AIProviderResponseError('OpenAI');

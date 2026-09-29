@@ -44,9 +44,10 @@ describe('SarvamProvider', () => {
               message: {
                 role: 'assistant',
                 content: JSON.stringify({
+                  action: 'REPLY',
                   message: 'Namaste!',
                   intent: 'greeting',
-                  requiresHuman: false,
+                  handoffReason: null,
                   toolCall: null,
                 }),
               },
@@ -63,11 +64,13 @@ describe('SarvamProvider', () => {
     await expect(
       provider.generate({
         messages: [{ role: 'user', content: 'Hello' }],
+        tools: [],
       }),
     ).resolves.toEqual({
+      action: 'REPLY',
       message: 'Namaste!',
       intent: 'greeting',
-      requiresHuman: false,
+      handoffReason: null,
       toolCall: null,
     });
 
@@ -121,9 +124,10 @@ describe('SarvamProvider', () => {
                 message: {
                   role: 'assistant',
                   content: JSON.stringify({
+                    action: 'REPLY',
                     message: 'Hello!',
                     intent: 'greeting',
-                    requiresHuman: false,
+                    handoffReason: null,
                     toolCall: null,
                   }),
                 },
@@ -138,6 +142,7 @@ describe('SarvamProvider', () => {
     await expect(
       new SarvamProvider().generate({
         messages: [{ role: 'user', content: 'Hello' }],
+        tools: [],
       }),
     ).resolves.toMatchObject({ message: 'Hello!' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -151,7 +156,7 @@ describe('SarvamProvider', () => {
     });
   });
 
-  it('accepts a handoff response without a message or tool call', async () => {
+  it('accepts an explicit handoff decision', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -166,9 +171,10 @@ describe('SarvamProvider', () => {
               message: {
                 role: 'assistant',
                 content: JSON.stringify({
-                  message: null,
+                  action: 'HANDOFF',
+                  message: 'A team member will help you now.',
                   intent: 'connect_to_agent',
-                  requiresHuman: true,
+                  handoffReason: 'customer_requested_human',
                   toolCall: null,
                 }),
               },
@@ -183,11 +189,13 @@ describe('SarvamProvider', () => {
     await expect(
       new SarvamProvider().generate({
         messages: [{ role: 'user', content: 'Connect me to an agent' }],
+        tools: [],
       }),
     ).resolves.toEqual({
-      message: null,
+      action: 'HANDOFF',
+      message: 'A team member will help you now.',
       intent: 'connect_to_agent',
-      requiresHuman: true,
+      handoffReason: 'customer_requested_human',
       toolCall: null,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -219,6 +227,7 @@ describe('SarvamProvider', () => {
     await expect(
       new SarvamProvider().generate({
         messages: [{ role: 'user', content: 'Hello' }],
+        tools: [],
       }),
     ).rejects.toBeInstanceOf(AIProviderResponseError);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -232,6 +241,7 @@ describe('SarvamProvider', () => {
     await expect(
       new SarvamProvider().generate({
         messages: [{ role: 'user', content: 'Hello' }],
+        tools: [],
       }),
     ).rejects.toBeInstanceOf(AIProviderConfigurationError);
     expect(fetchMock).not.toHaveBeenCalled();

@@ -6,18 +6,25 @@ describe('AIService', () => {
   it('delegates generation to the configured provider', async () => {
     const provider: AIProvider = {
       generate: vi.fn().mockResolvedValue({
+        action: 'REPLY',
         message: 'Hello',
         intent: null,
-        requiresHuman: false,
+        handoffReason: null,
+        toolCall: null,
       }),
     };
     const service = new AIService(provider);
-    const request = { messages: [{ role: 'user' as const, content: 'Hi' }] };
+    const request = {
+      messages: [{ role: 'user' as const, content: 'Hi' }],
+      tools: [],
+    };
 
     await expect(service.generate(request)).resolves.toEqual({
+      action: 'REPLY',
       message: 'Hello',
       intent: null,
-      requiresHuman: false,
+      handoffReason: null,
+      toolCall: null,
     });
     expect(provider.generate).toHaveBeenCalledWith(request);
   });

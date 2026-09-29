@@ -39,6 +39,7 @@ export type Conversation = {
   mode: ConversationMode;
   modeChangedAt: string;
   modeChangedById: string | null;
+  handoffReason: string | null;
   lastMessageAt: string | null;
   createdAt: string;
   contact: {

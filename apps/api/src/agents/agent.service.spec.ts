@@ -17,7 +17,7 @@ describe('AgentService', () => {
     agent: { upsert: vi.fn() },
   };
   const ai = { generate: vi.fn() };
-  const conversations = { sendText: vi.fn() };
+  const conversations = { sendText: vi.fn(), handoffToHuman: vi.fn() };
   const toolRegistry = { listDefinitions: vi.fn(), execute: vi.fn() };
   const previousAutoReplyValue = process.env.AI_AUTO_REPLY_ENABLED;
 
@@ -41,6 +41,10 @@ describe('AgentService', () => {
       tools: [],
     });
     toolRegistry.listDefinitions.mockReturnValue([]);
+    conversations.handoffToHuman.mockResolvedValue({
+      conversation: { id: 'conversation-1', mode: ConversationMode.HUMAN },
+      changed: true,
+    });
   });
 
   afterEach(() => {
@@ -85,9 +89,10 @@ describe('AgentService', () => {
       ],
     });
     ai.generate.mockResolvedValue({
+      action: 'REPLY',
       message: 'A team member will confirm that for you.',
       intent: 'business_hours',
-      requiresHuman: true,
+      handoffReason: null,
       toolCall: null,
     });
     conversations.sendText.mockResolvedValue({ id: 'message-1' });
@@ -99,9 +104,10 @@ describe('AgentService', () => {
       }),
     ).resolves.toEqual({
       response: {
+        action: 'REPLY',
         message: 'A team member will confirm that for you.',
         intent: 'business_hours',
-        requiresHuman: true,
+        handoffReason: null,
         toolCall: null,
       },
       sentMessage: { id: 'message-1' },
@@ -121,6 +127,7 @@ describe('AgentService', () => {
         { role: 'assistant', content: 'Hello Ada' },
         { role: 'user', content: 'Are you open?' },
       ],
+      tools: [],
     });
     expect(ai.generate.mock.calls[0]?.[0].messages[0]?.content).toContain(
       "Reply in the customer's language and script.",
@@ -176,18 +183,20 @@ describe('AgentService', () => {
     });
     ai.generate
       .mockResolvedValueOnce({
+        action: 'TOOL',
         message: null,
         intent: 'pricing',
-        requiresHuman: false,
+        handoffReason: null,
         toolCall: {
           name: 'calculate_price',
           argumentsJson: '{"guestCount":6}',
         },
       })
       .mockResolvedValueOnce({
+        action: 'REPLY',
         message: 'The verified price for 6 guests is INR 200.00.',
         intent: 'pricing',
-        requiresHuman: false,
+        handoffReason: null,
         toolCall: null,
       });
     conversations.sendText.mockResolvedValue({ id: 'message-1' });
@@ -214,6 +223,10 @@ describe('AgentService', () => {
     expect(ai.generate.mock.calls[1]?.[0].messages.at(-1)?.content).toContain(
       '"totalMinor":20000',
     );
+    expect(ai.generate.mock.calls[0]?.[0].tools).toEqual([
+      expect.objectContaining({ name: 'calculate_price' }),
+    ]);
+    expect(ai.generate.mock.calls[1]?.[0].tools).toEqual([]);
     expect(conversations.sendText).toHaveBeenCalledWith(
       'organization-1',
       'conversation-1',
@@ -263,9 +276,10 @@ describe('AgentService', () => {
       })
       .mockResolvedValueOnce({ mode: ConversationMode.HUMAN });
     ai.generate.mockResolvedValue({
+      action: 'REPLY',
       message: 'This response must not be sent.',
       intent: 'greeting',
-      requiresHuman: false,
+      handoffReason: null,
       toolCall: null,
     });
 
@@ -277,5 +291,99 @@ describe('AgentService', () => {
     ).resolves.toBeNull();
 
     expect(conversations.sendText).not.toHaveBeenCalled();
+  });
+
+  it('moves an AI-requested handoff to human mode and sends one acknowledgement', async () => {
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+      messages: [
+        {
+          direction: MessageDirection.INBOUND,
+          senderType: MessageSenderType.CONTACT,
+          text: 'Connect me to an agent',
+        },
+      ],
+    });
+    ai.generate.mockResolvedValue({
+      action: 'HANDOFF',
+      message: 'Sure, a team member will help you now.',
+      intent: 'connect_to_agent',
+      handoffReason: 'customer_requested_human',
+      toolCall: null,
+    });
+    conversations.sendText.mockResolvedValue({ id: 'message-1' });
+
+    await service.respondToInboundMessage({
+      organizationId: 'organization-1',
+      conversationId: 'conversation-1',
+    });
+
+    expect(conversations.handoffToHuman).toHaveBeenCalledWith(
+      'organization-1',
+      'conversation-1',
+      'customer_requested_human',
+    );
+    expect(conversations.sendText).toHaveBeenCalledWith(
+      'organization-1',
+      'conversation-1',
+      'Sure, a team member will help you now.',
+      MessageSenderType.SYSTEM,
+    );
+    expect(toolRegistry.execute).not.toHaveBeenCalled();
+  });
+
+  it('hands off safely when an enabled tool fails', async () => {
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+      messages: [],
+    });
+    prisma.agent.upsert.mockResolvedValue({
+      id: 'agent-1',
+      name: 'Support Agent',
+      instructions: '',
+      isEnabled: true,
+      knowledgeEntries: [],
+      tools: [{ name: 'calculate_price', configuration: { currency: 'INR' } }],
+    });
+    toolRegistry.listDefinitions.mockReturnValue([
+      {
+        name: 'calculate_price',
+        description: 'Calculate price',
+        inputSchema: { type: 'object' },
+      },
+    ]);
+    ai.generate.mockResolvedValue({
+      action: 'TOOL',
+      message: null,
+      intent: 'pricing',
+      handoffReason: null,
+      toolCall: {
+        name: 'calculate_price',
+        argumentsJson: '{"guestCount":6}',
+      },
+    });
+    toolRegistry.execute.mockRejectedValue(
+      new Error('Tool configuration is invalid'),
+    );
+    conversations.sendText.mockResolvedValue({ id: 'message-1' });
+
+    await service.respondToInboundMessage({
+      organizationId: 'organization-1',
+      conversationId: 'conversation-1',
+    });
+
+    expect(conversations.handoffToHuman).toHaveBeenCalledWith(
+      'organization-1',
+      'conversation-1',
+      'tool_execution_failed',
+    );
+    expect(conversations.sendText).toHaveBeenCalledWith(
+      'organization-1',
+      'conversation-1',
+      'I’m unable to verify that right now. A team member will help you.',
+      MessageSenderType.SYSTEM,
+    );
   });
 });

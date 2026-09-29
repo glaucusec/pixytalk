@@ -263,6 +263,8 @@ export class ConversationsService {
           mode,
           modeChangedAt: new Date(),
           modeChangedById: userId,
+          handoffReason:
+            mode === ConversationMode.HUMAN ? 'manual_takeover' : null,
         },
       });
 
@@ -278,5 +280,47 @@ export class ConversationsService {
     }
 
     return result.conversation;
+  }
+
+  async handoffToHuman(
+    organizationId: string,
+    conversationId: string,
+    reason: string,
+  ) {
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const conversation = await transaction.conversation.findFirst({
+        where: { id: conversationId, organizationId },
+      });
+
+      if (!conversation) {
+        throw new NotFoundException('Conversation not found');
+      }
+
+      if (conversation.mode === ConversationMode.HUMAN) {
+        return { conversation, changed: false };
+      }
+
+      const updatedConversation = await transaction.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          mode: ConversationMode.HUMAN,
+          modeChangedAt: new Date(),
+          modeChangedById: null,
+          handoffReason: reason,
+        },
+      });
+
+      return { conversation: updatedConversation, changed: true };
+    });
+
+    if (result.changed) {
+      this.conversationEvents.conversationChanged(
+        organizationId,
+        conversationId,
+        'mode-changed',
+      );
+    }
+
+    return result;
   }
 }

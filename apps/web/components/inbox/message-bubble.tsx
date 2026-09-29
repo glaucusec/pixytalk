@@ -20,6 +20,34 @@ export function MessageBubble({
   message: Message;
   day: string | null;
 }) {
+  if (message.senderType === "SYSTEM") {
+    return (
+      <>
+        {day ? (
+          <div
+            className="my-3 flex items-center gap-3 text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            role="separator"
+            aria-label={day}
+          >
+            <span className="h-px flex-1 bg-border" />
+            {day}
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        ) : null}
+        <div className="flex justify-center py-1">
+          <div className="max-w-[85%] rounded-full border bg-muted/60 px-4 py-2 text-center text-xs text-muted-foreground">
+            <p className="whitespace-pre-wrap break-words">
+              {message.text || messageTypeLabel(message.type)}
+            </p>
+            <span className="mt-0.5 block font-mono text-[9px]">
+              {shortTime(message.providerTimestamp)}
+            </span>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   const outbound = message.direction === "OUTBOUND";
 
   return (

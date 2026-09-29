@@ -5,16 +5,23 @@ import { OpenAIProvider } from './openai-provider.js';
 import { SarvamProvider } from './sarvam-provider.js';
 
 describe('FallbackAIProvider', () => {
-  const input = { messages: [{ role: 'user' as const, content: 'Hello' }] };
+  const input = {
+    messages: [{ role: 'user' as const, content: 'Hello' }],
+    tools: [],
+  };
   const sarvamResponse = {
+    action: 'REPLY',
     message: 'Namaste',
     intent: 'greeting',
-    requiresHuman: false,
+    handoffReason: null,
+    toolCall: null,
   };
   const openAIResponse = {
+    action: 'REPLY',
     message: 'Hello',
     intent: 'greeting',
-    requiresHuman: false,
+    handoffReason: null,
+    toolCall: null,
   };
 
   function createProvider() {
