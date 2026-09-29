@@ -127,6 +127,18 @@ export function ConversationPane({
         </p>
       ) : null}
 
+      {conversation.mode === "HUMAN" &&
+      conversation.handoffReason &&
+      conversation.handoffReason !== "manual_takeover" ? (
+        <Alert className="rounded-none border-x-0 border-t-0 bg-amber-50/70 px-5 py-3 dark:bg-amber-950/20">
+          <HandIcon aria-hidden="true" />
+          <AlertTitle>Human assistance requested</AlertTitle>
+          <AlertDescription>
+            AI replies are paused. A team member can continue this conversation.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div
         ref={messageListRef}
         className="inbox-message-field min-h-0 min-w-0 flex-1 overscroll-contain overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8"

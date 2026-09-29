@@ -85,6 +85,7 @@ model Conversation {
   mode            ConversationMode @default(AI)
   modeChangedAt   DateTime         @default(now())
   modeChangedById String?          @db.Uuid
+  handoffReason   String?
 
   lastMessageAt DateTime?
   createdAt     DateTime  @default(now())

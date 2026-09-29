@@ -104,6 +104,7 @@ describe('ConversationsService', () => {
         mode: ConversationMode.HUMAN,
         modeChangedAt: expect.any(Date),
         modeChangedById: 'user-1',
+        handoffReason: 'manual_takeover',
       },
     });
     expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
@@ -111,6 +112,36 @@ describe('ConversationsService', () => {
       'conversation-1',
       'mode-changed',
     );
+  });
+
+  it('clears the handoff reason when AI is resumed', async () => {
+    transaction.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.HUMAN,
+      handoffReason: 'customer_requested_human',
+    });
+    transaction.conversation.update.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+      handoffReason: null,
+    });
+
+    await service.updateMode(
+      'organization-1',
+      'conversation-1',
+      'user-1',
+      ConversationMode.AI,
+    );
+
+    expect(transaction.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conversation-1' },
+      data: {
+        mode: ConversationMode.AI,
+        modeChangedAt: expect.any(Date),
+        modeChangedById: 'user-1',
+        handoffReason: null,
+      },
+    });
   });
 
   it('sends a manual reply in human mode and publishes message changes', async () => {
@@ -152,5 +183,58 @@ describe('ConversationsService', () => {
       'conversation-1',
       'message-updated',
     );
+  });
+
+  it('moves an AI conversation to human mode for an automatic handoff', async () => {
+    transaction.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.AI,
+    });
+    transaction.conversation.update.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.HUMAN,
+      handoffReason: 'customer_requested_human',
+    });
+
+    await expect(
+      service.handoffToHuman(
+        'organization-1',
+        'conversation-1',
+        'customer_requested_human',
+      ),
+    ).resolves.toMatchObject({ changed: true });
+
+    expect(transaction.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conversation-1' },
+      data: {
+        mode: ConversationMode.HUMAN,
+        modeChangedAt: expect.any(Date),
+        modeChangedById: null,
+        handoffReason: 'customer_requested_human',
+      },
+    });
+    expect(conversationEvents.conversationChanged).toHaveBeenCalledWith(
+      'organization-1',
+      'conversation-1',
+      'mode-changed',
+    );
+  });
+
+  it('does not repeat an automatic handoff already in human mode', async () => {
+    transaction.conversation.findFirst.mockResolvedValue({
+      id: 'conversation-1',
+      mode: ConversationMode.HUMAN,
+    });
+
+    await expect(
+      service.handoffToHuman(
+        'organization-1',
+        'conversation-1',
+        'customer_requested_human',
+      ),
+    ).resolves.toMatchObject({ changed: false });
+
+    expect(transaction.conversation.update).not.toHaveBeenCalled();
+    expect(conversationEvents.conversationChanged).not.toHaveBeenCalled();
   });
 });
