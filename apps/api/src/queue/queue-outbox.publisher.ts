@@ -26,14 +26,25 @@ export class QueueOutboxPublisher {
     this.publishing = true;
 
     try {
+      const staleBefore = new Date(Date.now() - 5 * 60_000);
       const pending = await this.prisma.inboundProcessingJob.findMany({
-        where: { status: 'PENDING' },
+        where: {
+          OR: [
+            { status: 'PENDING' },
+            { status: 'ENQUEUED', enqueuedAt: { lt: staleBefore } },
+            { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
+          ],
+        },
         orderBy: { createdAt: 'asc' },
         take: 50,
       });
 
       for (const event of pending) {
         try {
+          if (event.status !== 'PENDING') {
+            const existing = await this.queue.getJob(event.id);
+            if (existing) continue;
+          }
           await this.queue.add(
             INBOUND_PROCESSING_JOB,
             {
@@ -51,7 +62,13 @@ export class QueueOutboxPublisher {
             },
           );
           await this.prisma.inboundProcessingJob.updateMany({
-            where: { id: event.id, status: 'PENDING' },
+            where: {
+              id: event.id,
+              status: event.status,
+              ...(event.status !== 'PENDING'
+                ? { updatedAt: event.updatedAt }
+                : {}),
+            },
             data: { status: 'ENQUEUED', enqueuedAt: new Date() },
           });
         } catch (error) {

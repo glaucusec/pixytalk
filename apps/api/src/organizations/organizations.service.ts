@@ -16,6 +16,7 @@ export class OrganizationsService {
       include: {
         whatsAppAccounts: {
           select: { id: true, displayPhoneNumber: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: 1,
         },
       },
@@ -37,6 +38,7 @@ export class OrganizationsService {
   async getWhatsAppAccount(organizationId: string) {
     return this.prisma.whatsAppAccount.findFirst({
       where: { organizationId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: {
         id: true,
         phoneNumberId: true,
@@ -77,6 +79,7 @@ export class OrganizationsService {
 
     const currentAccount = await this.prisma.whatsAppAccount.findFirst({
       where: { organizationId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true, phoneNumberId: true },
     });
     if (currentAccount) {

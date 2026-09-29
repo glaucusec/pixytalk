@@ -42,6 +42,7 @@ export class InboundJobProcessor extends WorkerHost {
     await this.agentService.respondToInboundMessage({
       organizationId,
       conversationId,
+      providerMessageId: job.data.providerMessageId,
     });
 
     await this.prisma.inboundProcessingJob.update({

@@ -43,6 +43,7 @@ describe('InboundJobProcessor', () => {
     expect(agentService.respondToInboundMessage).toHaveBeenCalledWith({
       organizationId: 'organization-1',
       conversationId: 'conversation-1',
+      providerMessageId: 'wamid-1',
     });
     expect(prisma.inboundProcessingJob.update).toHaveBeenNthCalledWith(
       1,

@@ -10,7 +10,7 @@ describe('QueueOutboxPublisher', () => {
       updateMany: vi.fn(),
     },
   };
-  const queue = { add: vi.fn() };
+  const queue = { add: vi.fn(), getJob: vi.fn() };
   const publisher = new QueueOutboxPublisher(
     prisma as unknown as PrismaService,
     queue as never,
@@ -21,12 +21,14 @@ describe('QueueOutboxPublisher', () => {
     prisma.inboundProcessingJob.findMany.mockResolvedValue([
       {
         id: 'job-1',
+        status: 'PENDING',
         organizationId: 'organization-1',
         conversationId: 'conversation-1',
         providerMessageId: 'wamid-1',
       },
     ]);
     queue.add.mockResolvedValue({ id: 'job-1' });
+    queue.getJob.mockResolvedValue(null);
     prisma.inboundProcessingJob.updateMany.mockResolvedValue({ count: 1 });
   });
 
@@ -61,5 +63,36 @@ describe('QueueOutboxPublisher', () => {
     await publisher.publishPending();
 
     expect(prisma.inboundProcessingJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('recreates an enqueued job after its Redis entry is lost', async () => {
+    prisma.inboundProcessingJob.findMany.mockResolvedValueOnce([
+      {
+        id: 'job-1',
+        status: 'ENQUEUED',
+        organizationId: 'organization-1',
+        conversationId: 'conversation-1',
+        providerMessageId: 'wamid-1',
+      },
+    ]);
+
+    await publisher.publishPending();
+
+    expect(queue.getJob).toHaveBeenCalledWith('job-1');
+    expect(queue.add).toHaveBeenCalledOnce();
+    expect(prisma.inboundProcessingJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'job-1', status: 'ENQUEUED' } }),
+    );
+  });
+
+  it('keeps an enqueued record when its Redis job still exists', async () => {
+    prisma.inboundProcessingJob.findMany.mockResolvedValueOnce([
+      { id: 'job-1', status: 'ENQUEUED' },
+    ]);
+    queue.getJob.mockResolvedValueOnce({ id: 'job-1' });
+
+    await publisher.publishPending();
+
+    expect(queue.add).not.toHaveBeenCalled();
   });
 });

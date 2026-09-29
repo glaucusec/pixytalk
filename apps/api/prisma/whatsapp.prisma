@@ -44,7 +44,7 @@ enum MessageStatus {
 
 model WhatsAppAccount {
   id                 String   @id @default(uuid())
-  organizationId     String   @unique @db.Uuid
+  organizationId     String   @db.Uuid
   wabaId             String
   phoneNumberId      String   @unique
   displayPhoneNumber String?

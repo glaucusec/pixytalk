@@ -7,6 +7,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { AppModule } from './../src/app.module.js';
 import { PrismaService } from './../src/database/prisma.service.js';
 import { INBOUND_PROCESSING_QUEUE } from './../src/queue/queue.constants.js';
+import { RedisConversationEventTransport } from './../src/realtime/redis-conversation-event.transport.js';
 
 const testQueue = {
   add: async () => ({ id: 'test-job' }),
@@ -14,6 +15,10 @@ const testQueue = {
   close: async () => undefined,
 };
 const testPrisma = { $queryRaw: async () => 1 };
+const testEventTransport = {
+  subscribe: async () => undefined,
+  emitConversationChanged: () => undefined,
+};
 
 describe('Authentication and organization access (e2e)', () => {
   let app: INestApplication<App>;
@@ -26,6 +31,8 @@ describe('Authentication and organization access (e2e)', () => {
       .useValue(testPrisma)
       .overrideProvider(getQueueToken(INBOUND_PROCESSING_QUEUE))
       .useValue(testQueue)
+      .overrideProvider(RedisConversationEventTransport)
+      .useValue(testEventTransport)
       .compile();
 
     app = moduleFixture.createNestApplication({ bodyParser: false });
@@ -71,6 +78,8 @@ describe('WhatsApp webhook (e2e)', () => {
       .useValue({})
       .overrideProvider(getQueueToken(INBOUND_PROCESSING_QUEUE))
       .useValue(testQueue)
+      .overrideProvider(RedisConversationEventTransport)
+      .useValue(testEventTransport)
       .compile();
 
     app = moduleFixture.createNestApplication({ bodyParser: false });

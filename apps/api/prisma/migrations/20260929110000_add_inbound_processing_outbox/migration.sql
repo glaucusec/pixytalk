@@ -34,8 +34,6 @@ ALTER TABLE "InboundProcessingJob"
     FOREIGN KEY ("organizationId") REFERENCES "organization"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
-CREATE UNIQUE INDEX "WhatsAppAccount_organizationId_key"
-    ON "WhatsAppAccount"("organizationId");
 ALTER TABLE "InboundProcessingJob"
     ADD CONSTRAINT "InboundProcessingJob_conversationId_fkey"
     FOREIGN KEY ("conversationId") REFERENCES "Conversation"("id")

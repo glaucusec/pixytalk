@@ -48,6 +48,7 @@ describe('OrganizationsService', () => {
       include: {
         whatsAppAccounts: {
           select: { id: true, displayPhoneNumber: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: 1,
         },
       },

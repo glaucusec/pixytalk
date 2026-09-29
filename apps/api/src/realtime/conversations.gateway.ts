@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import {
   OnGatewayConnection,
+  OnGatewayInit,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -12,6 +13,7 @@ import type {
   ConversationChangeReason,
   ConversationEventTransport,
 } from './conversation-event-transport.js';
+import { RedisConversationEventTransport } from './redis-conversation-event.transport.js';
 
 @WebSocketGateway({
   namespace: '/conversations',
@@ -21,14 +23,29 @@ import type {
   },
 })
 export class ConversationsGateway
-  implements OnGatewayConnection, ConversationEventTransport
+  implements OnGatewayConnection, OnGatewayInit, ConversationEventTransport
 {
   private readonly logger = new Logger(ConversationsGateway.name);
 
   @WebSocketServer()
   server!: Server;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventTransport: RedisConversationEventTransport,
+  ) {}
+
+  afterInit() {
+    void this.eventTransport
+      .subscribe((organizationId, conversationId, reason) =>
+        this.emitConversationChanged(organizationId, conversationId, reason),
+      )
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Could not subscribe to conversation events: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
 
   async handleConnection(client: Socket) {
     try {
@@ -68,9 +85,6 @@ export class ConversationsGateway
     conversationId: string,
     reason: ConversationChangeReason,
   ) {
-    // The gateway is also provided in the worker application context, where
-    // Nest does not attach a Socket.IO server. Background message processing
-    // must continue even when there are no connected websocket clients.
     if (!this.server) return;
 
     this.server
